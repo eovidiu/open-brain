@@ -7,9 +7,11 @@ import { handleGetStats } from './tools/get-stats.js';
 import { handleCaptureMemory, CaptureValidationError, DbWriteError } from './tools/capture-memory.js';
 import { startStdioTransport } from './transport/stdio.js';
 import { startSSETransport } from './transport/sse.js';
+import { createCaptureRateLimiter } from './auth/rate-limiter.js';
 
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
 const SSE_PORT = parseInt(process.env.MCP_SERVER_PORT || '3001', 10);
+const captureRateLimiter = createCaptureRateLimiter();
 
 async function validateSystemConfig(): Promise<void> {
   try {
@@ -58,6 +60,7 @@ function createServer(): McpServer {
     {
       n: z.number().int().min(1).max(100).default(20),
       filter_type: z.enum(['decision', 'insight', 'person_note', 'meeting_debrief', 'task', 'reference']).optional(),
+      wrap_output: z.boolean().default(false),
     },
     async (params) => {
       const results = await handleListRecent(params);
@@ -85,6 +88,15 @@ function createServer(): McpServer {
       source: z.enum(['slack', 'claude', 'chatgpt', 'mcp_direct', 'api']).default('mcp_direct'),
     },
     async (params) => {
+      // FR-MCP-02: same rate limits as HTTP capture endpoint
+      const rateCheck = captureRateLimiter.check('mcp_capture');
+      if (!rateCheck.allowed) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: 'RATE_LIMITED', retry_after: rateCheck.retryAfter }) }],
+          isError: true,
+        };
+      }
+
       try {
         const result = await handleCaptureMemory(params);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };

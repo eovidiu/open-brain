@@ -35,15 +35,17 @@ export async function startSSETransport(server: Server, port: number): Promise<v
       return;
     }
 
-    if (client_secret !== expectedSecret) {
-      const check = authLimiter.check(ip);
-      if (!check.allowed) {
-        res.status(429).json({ error: 'RATE_LIMITED' });
-        if (check.retryAfter) {
-          res.setHeader('Retry-After', check.retryAfter.toString());
-        }
-        return;
+    // Rate limit check BEFORE secret validation (brute force defense)
+    const rateCheck = authLimiter.check(ip);
+    if (!rateCheck.allowed) {
+      if (rateCheck.retryAfter) {
+        res.setHeader('Retry-After', rateCheck.retryAfter.toString());
       }
+      res.status(429).json({ error: 'RATE_LIMITED' });
+      return;
+    }
+
+    if (client_secret !== expectedSecret) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
