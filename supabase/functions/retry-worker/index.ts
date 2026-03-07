@@ -4,7 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 const MAX_EMBEDDING_RETRIES = 10;
 const MAX_METADATA_RETRIES = 10;
 const BATCH_LIMIT = 20;
-const METADATA_TEXT_LIMIT = 8000;
+// Spec §5.3: truncate at 6,000 tokens (~24,000 chars at ~4 chars/token)
+const METADATA_TEXT_LIMIT = 24_000;
 
 const METADATA_EXTRACTION_PROMPT = `You are a metadata extractor for a personal knowledge system.
 Your only task: analyze the USER_INPUT below and return a single valid JSON object

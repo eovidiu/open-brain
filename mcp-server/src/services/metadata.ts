@@ -7,7 +7,9 @@ import { DEGRADED_METADATA, VALID_METADATA_TYPES } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_PATH = path.resolve(__dirname, '../../../prompts/metadata-extraction.txt');
-const TRUNCATION_CHARS = 8000;
+// Spec §5.3: truncate at 6,000 tokens (~24,000 chars at ~4 chars/token).
+// Since raw_text max is 10,000 chars (~2,500 tokens), this rarely triggers.
+const TRUNCATION_CHARS = 24_000;
 
 let promptTemplate: string | null = null;
 

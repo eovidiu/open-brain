@@ -9,7 +9,9 @@ const VALID_SOURCES = new Set(['slack', 'claude', 'chatgpt', 'mcp_direct', 'api'
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 60;
 const TEXT_MAX_LENGTH = 10_000;
-const METADATA_TRUNCATE_LENGTH = 8_000;
+// Spec §5.3: truncate at 6,000 tokens (~24,000 chars at ~4 chars/token).
+// Since raw_text max is 10,000 chars, this effectively never triggers.
+const METADATA_TRUNCATE_LENGTH = 24_000;
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
