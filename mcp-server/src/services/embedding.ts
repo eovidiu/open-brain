@@ -13,8 +13,10 @@ function getClient(): OpenAI {
 }
 
 export async function generateEmbedding(text: string): Promise<number[] | null> {
+  // Config errors (e.g. missing API key) must propagate — they are permanent
+  const openai = getClient();
+
   try {
-    const openai = getClient();
     const response = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: text,
