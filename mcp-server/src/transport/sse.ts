@@ -74,8 +74,10 @@ export async function startSSETransport(server: Server, port: number): Promise<v
         total_memories: count ?? 0,
         embedding_model: config.embedding_model,
       });
-    } catch {
-      res.json({
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[health] DB health check failed: ${message}`);
+      res.status(503).json({
         status: 'degraded',
         db_connected: false,
       });
