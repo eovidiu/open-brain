@@ -41,6 +41,13 @@ export async function captureMemory(
     extractMetadata(text),
   ]);
 
+  if (embeddingResult.status === 'rejected') {
+    console.error(`[capture] Embedding rejected: ${embeddingResult.reason}`);
+  }
+  if (metadataResult.status === 'rejected') {
+    console.error(`[capture] Metadata rejected: ${metadataResult.reason}`);
+  }
+
   const embedding = embeddingResult.status === 'fulfilled' ? embeddingResult.value : null;
   const embeddingStatus: EmbeddingStatus = embedding ? 'ready' : 'pending';
 
