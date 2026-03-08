@@ -36,21 +36,33 @@ supabase secrets set CAPTURE_WEBHOOK_SECRET=<your-generated-secret>
 2. Under **Event Subscriptions**, enable events and set the Request URL to your capture endpoint.
 3. Alternatively, use **Outgoing Webhooks** (legacy) if you prefer channel-specific triggers.
 
-### 4. Sign requests with HMAC
+### 4. Sign requests with HMAC + timestamp
 
-Your integration must include an `X-OpenBrain-Signature` header with the format:
+Your integration must include two headers for replay-protected authentication:
+
+- `X-OpenBrain-Timestamp` — current Unix epoch in seconds
+- `X-OpenBrain-Signature` — HMAC-SHA256 of `<timestamp>.<body>` (not just the body)
+
+The signature format:
 
 ```
-sha256=<hex-encoded HMAC-SHA256 of request body using your webhook secret>
+sha256=<hex-encoded HMAC-SHA256 of "<timestamp>.<request-body>" using your webhook secret>
 ```
+
+Requests older than 5 minutes are rejected.
 
 ### 5. Request format
 
 ```bash
+TIMESTAMP=$(date +%s)
+BODY='{"text": "The message content", "source": "slack"}'
+SIGNATURE=$(echo -n "${TIMESTAMP}.${BODY}" | openssl dgst -sha256 -hmac "<your-webhook-secret>" | awk '{print $2}')
+
 curl -X POST https://<your-project>.supabase.co/functions/v1/capture \
   -H "Content-Type: application/json" \
-  -H "X-OpenBrain-Signature: sha256=<computed-hmac>" \
-  -d '{"text": "The message content", "source": "slack"}'
+  -H "X-OpenBrain-Timestamp: ${TIMESTAMP}" \
+  -H "X-OpenBrain-Signature: sha256=${SIGNATURE}" \
+  -d "${BODY}"
 ```
 
 ### 6. Middleware option
@@ -59,7 +71,7 @@ If your Slack app cannot compute HMAC signatures directly, deploy a small middle
 
 1. Receives Slack's webhook payload
 2. Extracts the message text
-3. Computes the HMAC signature
-4. Forwards to your capture endpoint
+3. Computes the HMAC signature with timestamp (sign `<timestamp>.<body>`)
+4. Forwards to your capture endpoint with both headers
 
 This keeps your webhook secret out of Slack's configuration.
