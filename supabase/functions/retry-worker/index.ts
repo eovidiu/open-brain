@@ -324,7 +324,19 @@ serve(async (req: Request) => {
   let eligibleRecords: EligibleRecord[];
 
   if (queryError) {
-    console.log(`RPC fallback: ${queryError.message}. Using direct query.`);
+    const isNotFound = queryError.message?.includes('function') ||
+                       queryError.message?.includes('does not exist') ||
+                       queryError.code === '42883'; // PostgreSQL "undefined function"
+
+    if (!isNotFound) {
+      console.error(`[retry-worker] RPC failed with unexpected error: ${queryError.message}`);
+      return new Response(JSON.stringify({ error: 'RPC query failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.warn(`[retry-worker] RPC not found, using fallback query`);
 
     const { data, error } = await supabase
       .from('memories')
