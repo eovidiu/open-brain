@@ -2,6 +2,10 @@
 
 Personal, vendor-neutral, agent-readable knowledge system.
 
+## Origin
+
+This project is an implementation of a concept articulated by [Nate B Jones](https://www.natebjones.com/) in his Substack article ["Every AI You Use Forgets You — Here's the Fix"](https://natesnewsletter.substack.com/p/every-ai-you-use-forgets-you-heres). Nate has been doing outstanding work at the intersection of AI and personal knowledge management — go read his newsletter.
+
 ## What it does
 
 Open Brain gives your AI tools a shared memory. Instead of re-explaining context every time you switch between Claude, ChatGPT, Cursor, or any MCP-compatible client, you capture thoughts once and search them from anywhere. Everything is stored in your own Supabase database with vector embeddings for semantic search.
