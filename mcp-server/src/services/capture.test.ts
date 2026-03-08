@@ -187,6 +187,26 @@ describe('captureMemory', () => {
     expect(result.metadata_status).toBe('degraded');
   });
 
+  it('should log rejection reason when embedding throws unexpected error', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockGenerateEmbedding.mockRejectedValueOnce(new Error('runtime crash'));
+
+    await captureMemory('test text', 'api');
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('runtime crash'));
+    consoleSpy.mockRestore();
+  });
+
+  it('should log rejection reason when metadata throws unexpected error', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockExtractMetadata.mockRejectedValueOnce(new Error('metadata crash'));
+
+    await captureMemory('test text', 'api');
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('metadata crash'));
+    consoleSpy.mockRestore();
+  });
+
   it('throws DbWriteError when DB write fails', async () => {
     mockInsertMemory.mockRejectedValue(new Error('connection refused'));
 

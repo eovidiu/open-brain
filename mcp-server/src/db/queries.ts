@@ -11,6 +11,12 @@ import type {
 } from '../types.js';
 
 const MAX_EMBEDDING_RETRIES = 10;
+const MAX_METADATA_RETRIES = 10;
+
+function sanitizeDbError(context: string, error: { message: string }): Error {
+  console.error(`[db] ${context}: ${error.message}`);
+  return new Error(`Database operation failed: ${context}`);
+}
 
 // Insert a new memory record and return a CaptureResponse
 export async function insertMemory(record: {
@@ -44,7 +50,7 @@ export async function insertMemory(record: {
     .single();
 
   if (error) {
-    throw new Error(`Failed to insert memory: ${error.message}`);
+    throw sanitizeDbError('insert memory', error);
   }
 
   return {
@@ -81,7 +87,7 @@ export async function searchMemories(
   const { data, error } = await supabase.rpc('search_memories', params);
 
   if (error) {
-    throw new Error(`Search failed: ${error.message}`);
+    throw sanitizeDbError('search memories', error);
   }
 
   return (data ?? []).map((row: Record<string, unknown>) => ({
@@ -116,7 +122,7 @@ export async function listRecentMemories(
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Failed to list memories: ${error.message}`);
+    throw sanitizeDbError('list memories', error);
   }
 
   return (data ?? []).map((row: Record<string, unknown>) => ({
@@ -141,7 +147,7 @@ export async function getStats(): Promise<StatsResponse> {
   const { data, error } = await supabase.rpc('get_memory_stats');
 
   if (error) {
-    throw new Error(`Failed to get stats: ${error.message}`);
+    throw sanitizeDbError('get stats', error);
   }
 
   const raw = data as Record<string, unknown>;
@@ -168,7 +174,7 @@ export async function getSystemConfig(): Promise<SystemConfig> {
     .single();
 
   if (error) {
-    throw new Error(`Failed to read system config: ${error.message}`);
+    throw sanitizeDbError('read system config', error);
   }
 
   return {
@@ -197,7 +203,7 @@ export async function updateMemoryEmbedding(
     .eq('id', id);
 
   if (error) {
-    throw new Error(`Failed to update embedding for ${id}: ${error.message}`);
+    throw sanitizeDbError('update embedding', error);
   }
 }
 
@@ -218,7 +224,7 @@ export async function updateMemoryMetadata(
     .eq('id', id);
 
   if (error) {
-    throw new Error(`Failed to update metadata for ${id}: ${error.message}`);
+    throw sanitizeDbError('update metadata', error);
   }
 }
 
@@ -237,7 +243,7 @@ export async function incrementEmbeddingRetry(
     .single();
 
   if (readError) {
-    throw new Error(`Failed to read memory ${id}: ${readError.message}`);
+    throw sanitizeDbError('read embedding retry count', readError);
   }
 
   const newCount = (current.retry_count_embedding as number) + 1;
@@ -253,11 +259,11 @@ export async function incrementEmbeddingRetry(
     .eq('id', id);
 
   if (updateError) {
-    throw new Error(`Failed to increment embedding retry for ${id}: ${updateError.message}`);
+    throw sanitizeDbError('increment embedding retry', updateError);
   }
 }
 
-// Increment metadata retry count, set error
+// Increment metadata retry count, set error, mark failed if terminal
 export async function incrementMetadataRetry(
   id: string,
   processingError: string,
@@ -272,20 +278,22 @@ export async function incrementMetadataRetry(
     .single();
 
   if (readError) {
-    throw new Error(`Failed to read memory ${id}: ${readError.message}`);
+    throw sanitizeDbError('read metadata retry count', readError);
   }
 
   const newCount = (current.retry_count_metadata as number) + 1;
+  const isFailed = newCount >= MAX_METADATA_RETRIES;
 
   const { error: updateError } = await supabase
     .from('memories')
     .update({
       retry_count_metadata: newCount,
       last_processing_error: processingError,
+      ...(isFailed ? { metadata_status: 'failed' } : {}),
     })
     .eq('id', id);
 
   if (updateError) {
-    throw new Error(`Failed to increment metadata retry for ${id}: ${updateError.message}`);
+    throw sanitizeDbError('increment metadata retry', updateError);
   }
 }

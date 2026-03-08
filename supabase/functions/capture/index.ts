@@ -14,9 +14,9 @@ const TEXT_MAX_LENGTH = 10_000;
 const METADATA_TRUNCATE_LENGTH = 24_000;
 
 const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': '',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OpenBrain-Signature',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OpenBrain-Signature, X-OpenBrain-Timestamp',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -150,12 +150,23 @@ async function verifyHmacSignature(
   rawBody: Uint8Array,
   signatureHeader: string,
   secret: string,
+  timestamp?: string | null,
 ): Promise<boolean> {
   if (!signatureHeader.startsWith('sha256=')) return false;
+
+  // Timestamp required for replay protection
+  if (!timestamp) return false;
+  const ts = parseInt(timestamp, 10);
+  if (isNaN(ts)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - ts) > 300) return false;
+
   const providedHex = signatureHeader.slice(7);
 
+  // Sign timestamp.body to prevent replay
+  const payload = new TextEncoder().encode(`${timestamp}.${new TextDecoder().decode(rawBody)}`);
   const key = await importHmacKey(secret);
-  const computed = new Uint8Array(await crypto.subtle.sign('HMAC', key, rawBody));
+  const computed = new Uint8Array(await crypto.subtle.sign('HMAC', key, payload));
   const computedHex = bytesToHex(computed);
 
   // Constant-time comparison via subtle
@@ -206,7 +217,8 @@ async function authenticate(
       console.error('[capture] CAPTURE_WEBHOOK_SECRET not configured');
       return { authenticated: false, response: errorResponse(401, 'UNAUTHORIZED') };
     }
-    const valid = await verifyHmacSignature(rawBody, sigHeader, webhookSecret);
+    const timestampHeader = req.headers.get('X-OpenBrain-Timestamp');
+    const valid = await verifyHmacSignature(rawBody, sigHeader, webhookSecret, timestampHeader);
     if (valid) {
       return { authenticated: true, identifier: 'webhook:hmac' };
     }
@@ -283,14 +295,39 @@ async function extractMetadata(
     }
 
     const parsed = JSON.parse(cleanText);
-    if (truncated) {
-      parsed.truncated = true;
+    const validated = validateMetadata(parsed);
+    if (!validated) {
+      console.error('[capture] Metadata validation failed');
+      return null;
     }
-    return parsed;
+    if (truncated) validated.truncated = true;
+    return validated;
   } catch (e) {
     console.error(`[capture] Metadata extraction failed: ${(e as Error).message}`);
     return null;
   }
+}
+
+const VALID_TYPES = new Set([
+  'decision', 'insight', 'person_note', 'meeting_debrief',
+  'task', 'reference', 'note', 'meeting_note', 'unknown',
+]);
+
+function validateMetadata(raw: Record<string, unknown>): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const type = typeof raw.type === 'string' && VALID_TYPES.has(raw.type) ? raw.type : 'unknown';
+  const topics = Array.isArray(raw.topics) ? raw.topics.filter((t: unknown): t is string => typeof t === 'string').slice(0, 50) : [];
+  const people = Array.isArray(raw.people) ? raw.people.filter((p: unknown): p is string => typeof p === 'string').slice(0, 50) : [];
+  const actionItems = Array.isArray(raw.action_items) ? raw.action_items.filter((a: unknown): a is string => typeof a === 'string').slice(0, 50) : [];
+  const confidence = typeof raw.confidence === 'number' ? Math.max(0, Math.min(1, raw.confidence)) : 0;
+  const sentiment = ['positive', 'neutral', 'negative', 'mixed'].includes(raw.sentiment as string)
+    ? raw.sentiment as string : undefined;
+
+  const validated: Record<string, unknown> = { type, topics, people, action_items: actionItems, confidence, truncated: false };
+  if (sentiment) validated.sentiment = sentiment;
+
+  return validated;
 }
 
 async function callOpenAIChat(userPrompt: string): Promise<string | null> {

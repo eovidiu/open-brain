@@ -247,12 +247,14 @@ async function processRecord(
         } catch (err) {
           const errorMsg = redactError(err instanceof Error ? err.message : String(err));
           const newCount = record.retry_count_metadata + 1;
+          const isFailed = newCount >= MAX_METADATA_RETRIES;
 
           const { error: updateError } = await supabase
             .from('memories')
             .update({
               retry_count_metadata: newCount,
               last_processing_error: errorMsg,
+              ...(isFailed ? { metadata_status: 'failed' } : {}),
             })
             .eq('id', record.id);
 
@@ -260,7 +262,7 @@ async function processRecord(
             console.error(`Failed to update metadata retry for ${record.id}: ${updateError.message}`);
           }
           result.metadata = 'failure';
-          console.log(`Metadata failed for ${record.id} (attempt ${newCount}/${MAX_METADATA_RETRIES})`);
+          console.log(`Metadata failed for ${record.id} (attempt ${newCount}/${MAX_METADATA_RETRIES})${isFailed ? ' - marked failed' : ''}`);
         }
       })(),
     );
@@ -290,7 +292,22 @@ serve(async (req: Request) => {
     });
   }
 
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+  const expected = `Bearer ${serviceRoleKey}`;
+  if (!authHeader || authHeader.length !== expected.length) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const encoder = new TextEncoder();
+  const a = encoder.encode(authHeader);
+  const b = encoder.encode(expected);
+  const key = await crypto.subtle.importKey('raw', a, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sigA = new Uint8Array(await crypto.subtle.sign('HMAC', key, a));
+  const sigB = new Uint8Array(await crypto.subtle.sign('HMAC', key, b));
+  let diff = 0;
+  for (let i = 0; i < sigA.length; i++) diff |= sigA[i] ^ sigB[i];
+  if (diff !== 0) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -322,7 +339,19 @@ serve(async (req: Request) => {
   let eligibleRecords: EligibleRecord[];
 
   if (queryError) {
-    console.log(`RPC fallback: ${queryError.message}. Using direct query.`);
+    const isNotFound = queryError.message?.includes('function') ||
+                       queryError.message?.includes('does not exist') ||
+                       queryError.code === '42883'; // PostgreSQL "undefined function"
+
+    if (!isNotFound) {
+      console.error(`[retry-worker] RPC failed with unexpected error: ${queryError.message}`);
+      return new Response(JSON.stringify({ error: 'RPC query failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.warn(`[retry-worker] RPC not found, using fallback query`);
 
     const { data, error } = await supabase
       .from('memories')

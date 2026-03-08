@@ -27,12 +27,13 @@ function loadPrompt(): string {
   return promptTemplate;
 }
 
-function buildPrompt(rawText: string): { prompt: string; truncated: boolean } {
+function buildPrompt(rawText: string): { systemPrompt: string; userText: string; truncated: boolean } {
   const truncated = rawText.length > TRUNCATION_CHARS;
   const text = truncated ? rawText.slice(0, TRUNCATION_CHARS) : rawText;
-  const template = loadPrompt();
+  const systemPrompt = loadPrompt();
   return {
-    prompt: template.replace('{{raw_text}}', text),
+    systemPrompt,
+    userText: `<user_input>\n${text}\n</user_input>`,
     truncated,
   };
 }
@@ -58,7 +59,7 @@ function validateMetadata(raw: unknown): MemoryMetadata | null {
   };
 }
 
-async function extractWithAnthropic(prompt: string): Promise<unknown> {
+async function extractWithAnthropic(systemPrompt: string, userText: string): Promise<unknown> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
@@ -72,7 +73,9 @@ async function extractWithAnthropic(prompt: string): Promise<unknown> {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userText }],
     }),
   });
 
@@ -87,7 +90,7 @@ async function extractWithAnthropic(prompt: string): Promise<unknown> {
   return JSON.parse(stripMarkdownFences(text));
 }
 
-async function extractWithOpenAI(prompt: string): Promise<unknown> {
+async function extractWithOpenAI(systemPrompt: string, userText: string): Promise<unknown> {
   const apiKey = process.env.OPENAI_METADATA_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OpenAI API key not set for metadata');
 
@@ -95,8 +98,12 @@ async function extractWithOpenAI(prompt: string): Promise<unknown> {
   const response = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userText },
+    ],
     max_tokens: 1024,
+    temperature: 0,
   });
 
   const text = response.choices[0]?.message?.content;
@@ -109,12 +116,12 @@ export async function extractMetadata(
   rawText: string,
 ): Promise<{ metadata: MemoryMetadata; status: MetadataStatus }> {
   try {
-    const { prompt, truncated } = buildPrompt(rawText);
+    const { systemPrompt, userText, truncated } = buildPrompt(rawText);
     const provider = process.env.METADATA_LLM_PROVIDER || 'anthropic';
 
     const raw = provider === 'openai'
-      ? await extractWithOpenAI(prompt)
-      : await extractWithAnthropic(prompt);
+      ? await extractWithOpenAI(systemPrompt, userText)
+      : await extractWithAnthropic(systemPrompt, userText);
 
     const metadata = validateMetadata(raw);
     if (!metadata) {

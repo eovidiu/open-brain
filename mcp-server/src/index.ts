@@ -48,8 +48,14 @@ function createServer(): McpServer {
       wrap_output: z.boolean().default(false),
     },
     async (params) => {
-      const results = await handleSearchBrain(params);
-      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      try {
+        const results = await handleSearchBrain(params);
+        return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error';
+        console.error(`[search_brain] ${message}`);
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'SEARCH_FAILED', message: 'Failed to search memories' }) }], isError: true };
+      }
     },
   );
 
@@ -63,8 +69,14 @@ function createServer(): McpServer {
       wrap_output: z.boolean().default(false),
     },
     async (params) => {
-      const results = await handleListRecent(params);
-      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      try {
+        const results = await handleListRecent(params);
+        return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error';
+        console.error(`[list_recent] ${message}`);
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'LIST_FAILED', message: 'Failed to list memories' }) }], isError: true };
+      }
     },
   );
 
@@ -74,8 +86,14 @@ function createServer(): McpServer {
     'Get aggregate statistics about your personal knowledge base.',
     {},
     async () => {
-      const stats = await handleGetStats();
-      return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
+      try {
+        const stats = await handleGetStats();
+        return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error';
+        console.error(`[get_stats] ${message}`);
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'STATS_FAILED', message: 'Failed to get stats' }) }], isError: true };
+      }
     },
   );
 

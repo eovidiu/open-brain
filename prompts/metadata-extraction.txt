@@ -17,7 +17,3 @@ Schema:
   "confidence": 0.0,
   "truncated": false
 }
-
-<user_input>
-{{raw_text}}
-</user_input>
