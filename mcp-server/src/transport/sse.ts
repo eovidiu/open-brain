@@ -91,23 +91,38 @@ export async function startSSETransport(server: Server, port: number): Promise<v
     transports.set(sessionId, transport);
 
     // Check JWT expiry and send auth_expired event
-    const token = req.headers.authorization!.slice(7);
-    const jwtSecret = process.env.CAPTURE_JWT_SECRET!;
+    const authHeader = req.headers.authorization;
+    if (!authHeader) { res.status(401).json({ error: 'UNAUTHORIZED' }); return; }
+    const token = authHeader.slice(7);
+
+    const jwtSecret = process.env.CAPTURE_JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('[sse] CAPTURE_JWT_SECRET not configured');
+      res.status(500).json({ error: 'Server misconfigured' });
+      return;
+    }
+
     const decoded = verifyToken(token, jwtSecret);
     if (decoded) {
       const expiresIn = decoded.exp * 1000 - Date.now();
-      if (expiresIn > 0) {
-        setTimeout(() => {
-          res.write(`event: auth_expired\ndata: {}\n\n`);
-          transport.close();
-          transports.delete(sessionId);
-        }, expiresIn);
-      }
-    }
 
-    res.on('close', () => {
-      transports.delete(sessionId);
-    });
+      const expiryTimer = setTimeout(() => {
+        try {
+          if (!res.writableEnded) {
+            res.write(`event: auth_expired\ndata: {}\n\n`);
+          }
+        } catch (err) {
+          console.error(`[sse] Failed to write auth_expired: ${err instanceof Error ? err.message : err}`);
+        }
+        transport.close();
+        transports.delete(sessionId);
+      }, expiresIn);
+
+      res.on('close', () => {
+        clearTimeout(expiryTimer);
+        transports.delete(sessionId);
+      });
+    }
 
     await server.connect(transport);
   });
