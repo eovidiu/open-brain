@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "open-brain": {
+      "command": "node",
+      "args": ["/absolute/path/to/open-brain/mcp-server/dist/index.js", "--stdio"],
+      "env": {
+        "SUPABASE_URL": "https://your-project.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "your-service-role-key",
+        "OPENAI_API_KEY": "sk-your-openai-key",
+        "EMBEDDING_MODEL": "text-embedding-3-small",
+        "EMBEDDING_DIMENSIONS": "1536"
+      }
+    }
+  }
+}
