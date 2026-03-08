@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "mcp-server"
+    "mcp-server",
+    "cli"
   ],
   "scripts": {
     "build": "npm run build --workspace=mcp-server",
