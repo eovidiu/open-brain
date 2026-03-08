@@ -13,6 +13,14 @@ const TRUNCATION_CHARS = 24_000;
 
 let promptTemplate: string | null = null;
 
+function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('```')) {
+    return trimmed.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  }
+  return trimmed;
+}
+
 function loadPrompt(): string {
   if (promptTemplate) return promptTemplate;
   promptTemplate = fs.readFileSync(PROMPT_PATH, 'utf-8');
@@ -76,7 +84,7 @@ async function extractWithAnthropic(prompt: string): Promise<unknown> {
   const text = data.content?.[0]?.text;
   if (!text) throw new Error('Empty response from Anthropic');
 
-  return JSON.parse(text);
+  return JSON.parse(stripMarkdownFences(text));
 }
 
 async function extractWithOpenAI(prompt: string): Promise<unknown> {
@@ -94,7 +102,7 @@ async function extractWithOpenAI(prompt: string): Promise<unknown> {
   const text = response.choices[0]?.message?.content;
   if (!text) throw new Error('Empty response from OpenAI');
 
-  return JSON.parse(text);
+  return JSON.parse(stripMarkdownFences(text));
 }
 
 export async function extractMetadata(

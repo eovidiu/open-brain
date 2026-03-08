@@ -271,9 +271,18 @@ async function extractMetadata(
       resultText = await callOpenAIChat(userPrompt);
     }
 
-    if (!resultText) return null;
+    if (!resultText) {
+      console.error(`[capture] Metadata: LLM returned null for provider=${provider}`);
+      return null;
+    }
 
-    const parsed = JSON.parse(resultText);
+    // Strip markdown code fences if LLM wraps response despite instructions
+    let cleanText = resultText.trim();
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const parsed = JSON.parse(cleanText);
     if (truncated) {
       parsed.truncated = true;
     }

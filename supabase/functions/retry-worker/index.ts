@@ -118,8 +118,9 @@ async function callAnthropicMetadata(
   }
 
   const json = await response.json();
-  const text = json.content[0].text as string;
-  return JSON.parse(text);
+  const text = (json.content[0].text as string).trim();
+  const clean = text.startsWith('```') ? text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '') : text;
+  return JSON.parse(clean);
 }
 
 async function callOpenAIMetadata(
@@ -148,8 +149,9 @@ async function callOpenAIMetadata(
   }
 
   const json = await response.json();
-  const text = json.choices[0].message.content as string;
-  return JSON.parse(text);
+  const text = (json.choices[0].message.content as string).trim();
+  const clean = text.startsWith('```') ? text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '') : text;
+  return JSON.parse(clean);
 }
 
 // Strip potentially sensitive data from error messages
