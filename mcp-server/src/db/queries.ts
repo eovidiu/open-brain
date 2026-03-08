@@ -11,6 +11,7 @@ import type {
 } from '../types.js';
 
 const MAX_EMBEDDING_RETRIES = 10;
+const MAX_METADATA_RETRIES = 10;
 
 // Insert a new memory record and return a CaptureResponse
 export async function insertMemory(record: {
@@ -257,7 +258,7 @@ export async function incrementEmbeddingRetry(
   }
 }
 
-// Increment metadata retry count, set error
+// Increment metadata retry count, set error, mark failed if terminal
 export async function incrementMetadataRetry(
   id: string,
   processingError: string,
@@ -276,12 +277,14 @@ export async function incrementMetadataRetry(
   }
 
   const newCount = (current.retry_count_metadata as number) + 1;
+  const isFailed = newCount >= MAX_METADATA_RETRIES;
 
   const { error: updateError } = await supabase
     .from('memories')
     .update({
       retry_count_metadata: newCount,
       last_processing_error: processingError,
+      ...(isFailed ? { metadata_status: 'failed' } : {}),
     })
     .eq('id', id);
 

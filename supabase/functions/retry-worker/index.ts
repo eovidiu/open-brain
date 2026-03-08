@@ -247,12 +247,14 @@ async function processRecord(
         } catch (err) {
           const errorMsg = redactError(err instanceof Error ? err.message : String(err));
           const newCount = record.retry_count_metadata + 1;
+          const isFailed = newCount >= MAX_METADATA_RETRIES;
 
           const { error: updateError } = await supabase
             .from('memories')
             .update({
               retry_count_metadata: newCount,
               last_processing_error: errorMsg,
+              ...(isFailed ? { metadata_status: 'failed' } : {}),
             })
             .eq('id', record.id);
 
@@ -260,7 +262,7 @@ async function processRecord(
             console.error(`Failed to update metadata retry for ${record.id}: ${updateError.message}`);
           }
           result.metadata = 'failure';
-          console.log(`Metadata failed for ${record.id} (attempt ${newCount}/${MAX_METADATA_RETRIES})`);
+          console.log(`Metadata failed for ${record.id} (attempt ${newCount}/${MAX_METADATA_RETRIES})${isFailed ? ' - marked failed' : ''}`);
         }
       })(),
     );
