@@ -16,7 +16,7 @@ const METADATA_TRUNCATE_LENGTH = 24_000;
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OpenBrain-Signature',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OpenBrain-Signature, X-OpenBrain-Timestamp',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -150,12 +150,23 @@ async function verifyHmacSignature(
   rawBody: Uint8Array,
   signatureHeader: string,
   secret: string,
+  timestamp?: string | null,
 ): Promise<boolean> {
   if (!signatureHeader.startsWith('sha256=')) return false;
+
+  // Timestamp required for replay protection
+  if (!timestamp) return false;
+  const ts = parseInt(timestamp, 10);
+  if (isNaN(ts)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - ts) > 300) return false;
+
   const providedHex = signatureHeader.slice(7);
 
+  // Sign timestamp.body to prevent replay
+  const payload = new TextEncoder().encode(`${timestamp}.${new TextDecoder().decode(rawBody)}`);
   const key = await importHmacKey(secret);
-  const computed = new Uint8Array(await crypto.subtle.sign('HMAC', key, rawBody));
+  const computed = new Uint8Array(await crypto.subtle.sign('HMAC', key, payload));
   const computedHex = bytesToHex(computed);
 
   // Constant-time comparison via subtle
@@ -206,7 +217,8 @@ async function authenticate(
       console.error('[capture] CAPTURE_WEBHOOK_SECRET not configured');
       return { authenticated: false, response: errorResponse(401, 'UNAUTHORIZED') };
     }
-    const valid = await verifyHmacSignature(rawBody, sigHeader, webhookSecret);
+    const timestampHeader = req.headers.get('X-OpenBrain-Timestamp');
+    const valid = await verifyHmacSignature(rawBody, sigHeader, webhookSecret, timestampHeader);
     if (valid) {
       return { authenticated: true, identifier: 'webhook:hmac' };
     }

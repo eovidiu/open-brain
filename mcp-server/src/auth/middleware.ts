@@ -35,7 +35,8 @@ export function authenticateCapture(req: Request, res: Response, next: NextFunct
       res.status(401).json({ error: 'UNAUTHORIZED' });
       return;
     }
-    if (!verifyHmac(rawBody, hmacHeader, hmacSecret)) {
+    const timestampHeader = req.headers['x-openbrain-timestamp'] as string | undefined;
+    if (!verifyHmac(rawBody, hmacHeader, hmacSecret, timestampHeader)) {
       res.status(401).json({ error: 'UNAUTHORIZED' });
       return;
     }
