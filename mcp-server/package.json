@@ -20,6 +20,12 @@
     "openai": "^4.86.2",
     "zod": "^3.24.2"
   },
+  "author": "Ovidiu Eftimie",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eovidiu/open-brain.git"
+  },
   "devDependencies": {
     "@types/express": "^5.0.1",
     "@types/jsonwebtoken": "^9.0.9",

@@ -1,5 +1,5 @@
 {
-  "name": "open-brain",
+  "name": "@eovidiu/open-brain",
   "version": "1.0.0-mvp",
   "description": "Personal, vendor-neutral, agent-readable knowledge system",
   "private": true,
@@ -13,5 +13,18 @@
     "test": "npm run test --workspace=mcp-server",
     "test:watch": "npm run test:watch --workspace=mcp-server"
   },
-  "license": "MIT"
+  "author": "Ovidiu Eftimie",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eovidiu/open-brain.git"
+  },
+  "keywords": [
+    "mcp",
+    "knowledge-base",
+    "ai",
+    "supabase",
+    "vector-search",
+    "personal-knowledge"
+  ]
 }
