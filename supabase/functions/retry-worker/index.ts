@@ -292,7 +292,22 @@ serve(async (req: Request) => {
     });
   }
 
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+  const expected = `Bearer ${serviceRoleKey}`;
+  if (!authHeader || authHeader.length !== expected.length) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const encoder = new TextEncoder();
+  const a = encoder.encode(authHeader);
+  const b = encoder.encode(expected);
+  const key = await crypto.subtle.importKey('raw', a, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sigA = new Uint8Array(await crypto.subtle.sign('HMAC', key, a));
+  const sigB = new Uint8Array(await crypto.subtle.sign('HMAC', key, b));
+  let diff = 0;
+  for (let i = 0; i < sigA.length; i++) diff |= sigA[i] ^ sigB[i];
+  if (diff !== 0) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
