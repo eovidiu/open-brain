@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import type { Request, Response } from 'express';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -45,7 +46,9 @@ export async function startSSETransport(server: Server, port: number): Promise<v
       return;
     }
 
-    if (client_secret !== expectedSecret) {
+    const secretsMatch = client_secret.length === expectedSecret.length &&
+      crypto.timingSafeEqual(Buffer.from(client_secret), Buffer.from(expectedSecret));
+    if (!secretsMatch) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
