@@ -14,7 +14,7 @@ const TEXT_MAX_LENGTH = 10_000;
 const METADATA_TRUNCATE_LENGTH = 24_000;
 
 const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OpenBrain-Signature, X-OpenBrain-Timestamp',
   'Access-Control-Max-Age': '86400',

@@ -1,4 +1,8 @@
--- Enable Row Level Security on both tables
+-- Enable Row Level Security on both tables.
+-- ACCESS MODEL: All data access is through the service role key (which bypasses
+-- RLS). The deny-all policies below block anon and authenticated roles as a
+-- defense-in-depth measure. If user-facing access is ever needed, add explicit
+-- GRANT policies for the target role — do not remove these deny policies.
 ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_config ENABLE ROW LEVEL SECURITY;
 
