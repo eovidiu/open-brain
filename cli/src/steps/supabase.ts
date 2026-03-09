@@ -29,7 +29,7 @@ export const supabaseStep: SetupStep = {
         message: 'Supabase project URL:',
         placeholder: 'https://xyzabc.supabase.co',
         validate: (value) => {
-          if (!SUPABASE_URL_PATTERN.test(value)) {
+          if (!value || !SUPABASE_URL_PATTERN.test(value)) {
             return 'URL must match https://<project-ref>.supabase.co';
           }
         },
@@ -39,7 +39,7 @@ export const supabaseStep: SetupStep = {
       const key = await ui.password({
         message: 'Supabase service role key:',
         validate: (value) => {
-          if (!value.startsWith('eyJ')) {
+          if (!value?.startsWith('eyJ')) {
             return 'Service role key should start with "eyJ"';
           }
         },

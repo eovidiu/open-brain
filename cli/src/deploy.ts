@@ -57,7 +57,7 @@ export async function runDeploy(): Promise<void> {
       message: 'Supabase project URL:',
       placeholder: 'https://xyzabc.supabase.co',
       validate: (v) => {
-        if (!SUPABASE_URL_PATTERN.test(v)) return 'Must be https://<ref>.supabase.co';
+        if (!v || !SUPABASE_URL_PATTERN.test(v)) return 'Must be https://<ref>.supabase.co';
       },
     });
     if (ui.isCancel(urlInput)) bail('Setup cancelled.');
@@ -65,7 +65,7 @@ export async function runDeploy(): Promise<void> {
     const keyInput = await ui.password({
       message: 'Service role key (Project Settings → API):',
       validate: (v) => {
-        if (!v.startsWith('eyJ')) return 'Should start with "eyJ"';
+        if (!v?.startsWith('eyJ')) return 'Should start with "eyJ"';
       },
     });
     if (ui.isCancel(keyInput)) bail('Setup cancelled.');
@@ -97,7 +97,7 @@ export async function runDeploy(): Promise<void> {
     const keyInput = await ui.password({
       message: 'OpenAI API key:',
       validate: (v) => {
-        if (!v.startsWith('sk-')) return 'Should start with "sk-"';
+        if (!v?.startsWith('sk-')) return 'Should start with "sk-"';
       },
     });
     if (ui.isCancel(keyInput)) bail('Setup cancelled.');
@@ -129,7 +129,7 @@ export async function runDeploy(): Promise<void> {
       const keyInput = await ui.password({
         message: 'Anthropic API key:',
         validate: (v) => {
-          if (!v.startsWith('sk-ant-')) return 'Should start with "sk-ant-"';
+          if (!v?.startsWith('sk-ant-')) return 'Should start with "sk-ant-"';
         },
       });
       if (ui.isCancel(keyInput)) break;
