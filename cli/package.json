@@ -8,8 +8,30 @@
     "openbrain": "./dist/index.js"
   },
   "files": [
-    "dist",
-    "dist/edge-function.ts"
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eovidiu/open-brain.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/eovidiu/open-brain#readme",
+  "bugs": "https://github.com/eovidiu/open-brain/issues",
+  "author": "Ovidiu Eftimie",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "open-brain",
+    "ai-memory",
+    "supabase",
+    "knowledge-base",
+    "vector-search"
   ],
   "scripts": {
     "build": "tsc && npm run bundle-assets",
