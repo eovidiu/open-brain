@@ -17,7 +17,7 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@clack/prompts": "^0.9.1",
+    "@clack/prompts": "^1.1.0",
     "@supabase/supabase-js": "^2.49.4"
   },
   "devDependencies": {
