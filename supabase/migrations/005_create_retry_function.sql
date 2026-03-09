@@ -36,7 +36,13 @@ AS $$
   );
 $$;
 
--- Schedule the retry worker to run every minute via pg_cron
+-- Schedule the retry worker to run every minute via pg_cron (idempotent: unschedule first if exists)
+DO $$ BEGIN
+  PERFORM cron.unschedule('retry-pending-memories');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
 SELECT cron.schedule(
   'retry-pending-memories',
   '* * * * *',
