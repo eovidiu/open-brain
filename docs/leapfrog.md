@@ -21,7 +21,7 @@ Building a system like Open Brain traditionally would require:
 - **Weeks of architecture design**: evaluating vector databases, embedding models, authentication strategies, and deployment targets. Normally this means whiteboard sessions, spike PRs, and architecture review meetings.
 - **Multiple specialists**: a backend engineer for the database and edge functions, a DevOps engineer for Supabase deployment and CI/CD, a security engineer for HMAC auth and timing-safe comparisons, a technical writer for documentation.
 - **Sequential execution**: migrations first, then services, then transport layer, then tools, then auth, then CLI, then docs. Each phase blocked on the previous one.
-- **Estimated timeline**: 4–6 weeks for a solo engineer, or 2–3 weeks with a small team.
+- **Estimated execution time**: in current state 4 hours solo development.
 
 The security hardening alone—15 fixes across HMAC replay protection, timing-safe comparisons, prompt injection defense, DB error redaction, content injection prevention—would normally be a dedicated sprint with security review.
 
