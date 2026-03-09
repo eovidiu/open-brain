@@ -26,7 +26,7 @@ export const openaiStep: SetupStep = {
       const key = await ui.password({
         message: 'OpenAI API key:',
         validate: (value) => {
-          if (!value?.startsWith('sk-')) {
+          if (!value || !value.startsWith('sk-')) {
             return 'OpenAI API key should start with "sk-"';
           }
         },

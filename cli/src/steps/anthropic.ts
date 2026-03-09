@@ -26,7 +26,7 @@ export const anthropicStep: SetupStep = {
       const key = await ui.password({
         message: 'Anthropic API key:',
         validate: (value) => {
-          if (!value?.startsWith('sk-ant-')) {
+          if (!value || !value.startsWith('sk-ant-')) {
             return 'Anthropic API key should start with "sk-ant-"';
           }
         },

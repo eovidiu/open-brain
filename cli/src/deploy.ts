@@ -65,7 +65,7 @@ export async function runDeploy(): Promise<void> {
     const keyInput = await ui.password({
       message: 'Service role key (Project Settings → API):',
       validate: (v) => {
-        if (!v?.startsWith('eyJ')) return 'Should start with "eyJ"';
+        if (!v || !v.startsWith('eyJ')) return 'Should start with "eyJ"';
       },
     });
     if (ui.isCancel(keyInput)) bail('Setup cancelled.');
@@ -97,7 +97,7 @@ export async function runDeploy(): Promise<void> {
     const keyInput = await ui.password({
       message: 'OpenAI API key:',
       validate: (v) => {
-        if (!v?.startsWith('sk-')) return 'Should start with "sk-"';
+        if (!v || !v.startsWith('sk-')) return 'Should start with "sk-"';
       },
     });
     if (ui.isCancel(keyInput)) bail('Setup cancelled.');
@@ -129,7 +129,7 @@ export async function runDeploy(): Promise<void> {
       const keyInput = await ui.password({
         message: 'Anthropic API key:',
         validate: (v) => {
-          if (!v?.startsWith('sk-ant-')) return 'Should start with "sk-ant-"';
+          if (!v || !v.startsWith('sk-ant-')) return 'Should start with "sk-ant-"';
         },
       });
       if (ui.isCancel(keyInput)) break;

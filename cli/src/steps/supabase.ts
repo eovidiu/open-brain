@@ -39,7 +39,7 @@ export const supabaseStep: SetupStep = {
       const key = await ui.password({
         message: 'Supabase service role key:',
         validate: (value) => {
-          if (!value?.startsWith('eyJ')) {
+          if (!value || !value.startsWith('eyJ')) {
             return 'Service role key should start with "eyJ"';
           }
         },
