@@ -40,7 +40,7 @@ You need two accounts (both have free tiers):
 | **Supabase** | Hosts your database and MCP server | [supabase.com](https://supabase.com) |
 | **OpenAI** | Generates search embeddings | [platform.openai.com](https://platform.openai.com) |
 
-You also need **Node.js 18+** and the **Supabase CLI** installed. Check with `node --version` and `npx supabase --version`. If you don't have Node.js, download it from [nodejs.org](https://nodejs.org). For the Supabase CLI: `npm install -g supabase` or `brew install supabase/tap/supabase`.
+You also need **Node.js 18+** installed. Check with `node --version`. If you don't have it, download it from [nodejs.org](https://nodejs.org). The setup wizard handles everything else automatically via `npx`.
 
 ### Step 1: Create a Supabase project
 
@@ -154,9 +154,7 @@ Memories are automatically categorized into types: `decision`, `insight`, `perso
 
 ## Troubleshooting
 
-**"Supabase CLI not found"** — Install it with `npm install -g supabase` or `brew install supabase/tap/supabase`, then re-run the setup.
-
-**"config.config has invalid keys: project"** — Your Supabase CLI is outdated. Update it with `brew upgrade supabase` or `npm install -g supabase@latest`.
+**"Supabase CLI not found"** — The setup uses `npx supabase` which downloads the CLI automatically. If it still fails, install manually with `npm install -g supabase` or `brew install supabase/tap/supabase`, then re-run the setup.
 
 **"Connection failed"** — Double-check your Supabase URL (should be `https://something.supabase.co`) and your service role key (not the anon key — it's the longer one).
 
