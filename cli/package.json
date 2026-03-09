@@ -1,20 +1,24 @@
 {
-  "name": "@eovidiu/open-brain-cli",
-  "version": "1.0.0-mvp",
-  "description": "Interactive CLI setup wizard for Open Brain",
+  "name": "@eovidiu/open-brain-setup",
+  "version": "2.0.0",
+  "description": "One-command setup for Open Brain — deploy your AI memory to Supabase",
   "type": "module",
   "bin": {
+    "open-brain-setup": "./dist/index.js",
     "openbrain": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "dist/edge-function.ts"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run bundle-assets",
+    "bundle-assets": "cp ../supabase/functions/open-brain-mcp/index.ts dist/edge-function.ts 2>/dev/null || true",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
-    "@supabase/supabase-js": "^2.49.4",
-    "dotenv": "^16.4.7"
+    "@supabase/supabase-js": "^2.49.4"
   },
   "devDependencies": {
     "@types/node": "^22.13.14",
