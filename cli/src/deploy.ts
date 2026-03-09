@@ -322,7 +322,7 @@ function scaffoldProject(tmpDir: string): void {
   fs.mkdirSync(supabaseDir, { recursive: true });
   fs.writeFileSync(
     path.join(supabaseDir, 'config.toml'),
-    '[project]\nid = "open-brain"\n',
+    'project_id = "open-brain"\n',
   );
 
   // Edge function (migrations run via Management API, not from files)
