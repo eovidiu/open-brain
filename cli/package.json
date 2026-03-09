@@ -21,7 +21,7 @@
     "@supabase/supabase-js": "^2.49.4"
   },
   "devDependencies": {
-    "@types/node": "^22.13.14",
+    "@types/node": "^25.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }
