@@ -286,11 +286,29 @@ export async function runDeploy(): Promise<void> {
   // ------------------------------------------------------------------
   ui.stepHeader(4, 4, 'Your MCP Config');
 
-  const config = {
+  const mcpUrl = `${supabaseUrl}/functions/v1/open-brain-mcp`;
+
+  // Claude Desktop and most clients use stdio transport via mcp-remote adapter
+  const desktopConfig = {
     mcpServers: {
       'open-brain': {
-        type: 'http',
-        url: `${supabaseUrl}/functions/v1/open-brain-mcp`,
+        command: 'npx',
+        args: [
+          'mcp-remote',
+          mcpUrl,
+          '--header',
+          `Authorization: Bearer ${mcpClientSecret}`,
+        ],
+      },
+    },
+  };
+
+  // Claude Code supports HTTP transport natively
+  const codeConfig = {
+    mcpServers: {
+      'open-brain': {
+        type: 'streamable-http' as const,
+        url: mcpUrl,
         headers: {
           Authorization: `Bearer ${mcpClientSecret}`,
         },
@@ -298,15 +316,14 @@ export async function runDeploy(): Promise<void> {
     },
   };
 
-  const configJson = JSON.stringify(config, null, 2);
-
   ui.outro(
     'Done! Add this to your AI assistant:\n\n' +
-    configJson + '\n\n' +
-    '  Where to paste this:\n' +
-    '  • Claude Desktop → Settings → Developer → Edit Config\n' +
-    '  • Claude Code    → ~/.claude.json (or .mcp.json in your project)\n' +
-    '  • Cursor         → Settings → MCP Servers\n\n' +
+    '  ── Claude Desktop / Cursor ──\n' +
+    '  (Settings → Developer → Edit Config)\n\n' +
+    JSON.stringify(desktopConfig, null, 2) + '\n\n' +
+    '  ── Claude Code ──\n' +
+    '  (~/.claude.json or .mcp.json in your project)\n\n' +
+    JSON.stringify(codeConfig, null, 2) + '\n\n' +
     `  Your secret: ${mcpClientSecret}\n` +
     '  Save it somewhere safe — you\'ll need it if you reconfigure.',
   );
