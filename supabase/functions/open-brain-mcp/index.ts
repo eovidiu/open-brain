@@ -284,16 +284,18 @@ function authenticate(req: Request): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// MCP Server setup
+// MCP Server factory — creates a fresh instance per request to avoid state
+// leakage, listener accumulation, and race conditions on warm isolates.
 // ---------------------------------------------------------------------------
 
-const server = new McpServer({
-  name: 'open-brain',
-  version: '1.0.0',
-});
+function createMcpServer(): McpServer {
+  const server = new McpServer({
+    name: 'open-brain',
+    version: '1.0.0',
+  });
 
-// --- search_brain ---
-server.registerTool(
+  // --- search_brain ---
+  server.registerTool(
   'search_brain',
   {
     title: 'Search Brain',
@@ -500,6 +502,10 @@ server.registerTool(
   },
 );
 
+return server;
+
+} // end createMcpServer
+
 // ---------------------------------------------------------------------------
 // Hono app with auth + MCP transport
 // ---------------------------------------------------------------------------
@@ -514,6 +520,7 @@ app.all('*', async (c) => {
     }
   }
 
+  const server = createMcpServer();
   const transport = new WebStandardStreamableHTTPServerTransport();
   await server.connect(transport);
   return transport.handleRequest(c.req.raw);

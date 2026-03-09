@@ -12,6 +12,7 @@ import { MIGRATIONS, EDGE_FUNCTION_CODE } from './assets.js';
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL_PATTERN = /^https:\/\/([a-z0-9-]+)\.supabase\.co$/;
+const SUPABASE_MGMT_API = 'https://api.supabase.com/v1';
 
 function extractProjectRef(url: string): string {
   const match = url.match(SUPABASE_URL_PATTERN);
@@ -40,8 +41,9 @@ export async function runDeploy(): Promise<void> {
   ui.info(
     "Let's get your AI memory running in ~2 minutes.\n" +
     '  You\'ll need:\n' +
-    '  1. A Supabase project  → supabase.com (free tier works)\n' +
-    '  2. An OpenAI API key   → platform.openai.com/api-keys',
+    '  1. A Supabase project      → supabase.com (free tier works)\n' +
+    '  2. A Supabase access token → supabase.com/dashboard/account/tokens\n' +
+    '  3. An OpenAI API key       → platform.openai.com/api-keys',
   );
 
   // ------------------------------------------------------------------
@@ -86,6 +88,16 @@ export async function runDeploy(): Promise<void> {
   }
 
   const projectRef = extractProjectRef(supabaseUrl);
+
+  // Supabase access token (for CLI commands: secrets set, functions deploy)
+  const accessTokenInput = await ui.password({
+    message: 'Supabase access token (supabase.com/dashboard/account/tokens):',
+    validate: (v) => {
+      if (!v || v.length < 10) return 'Paste your access token from the Supabase dashboard';
+    },
+  });
+  if (ui.isCancel(accessTokenInput)) bail('Setup cancelled.');
+  const supabaseAccessToken = accessTokenInput as string;
 
   // ------------------------------------------------------------------
   // Step 2: Collect API keys
@@ -165,7 +177,7 @@ export async function runDeploy(): Promise<void> {
   const mcpClientSecret = crypto.randomBytes(36).toString('base64url');
   ui.info('Generated MCP client secret.');
 
-  // Check Supabase CLI
+  // Check Supabase CLI early (needed for secrets and function deploy)
   const cliSpinner = ui.spinner();
   cliSpinner.start('Checking for Supabase CLI...');
   if (!isSupabaseCLIAvailable()) {
@@ -182,40 +194,43 @@ export async function runDeploy(): Promise<void> {
   }
   cliSpinner.stop('Supabase CLI found');
 
-  // Scaffold a temp project directory with migrations + edge function
+  // Env passed to all Supabase CLI commands so they authenticate without `supabase link`
+  const cliEnv = { ...process.env, SUPABASE_ACCESS_TOKEN: supabaseAccessToken };
+
+  // Run migrations via Supabase Management API (no CLI link needed)
+  const migrateSpinner = ui.spinner();
+  migrateSpinner.start('Running database migrations...');
+  try {
+    const sortedMigrations = Object.entries(MIGRATIONS).sort(([a], [b]) => a.localeCompare(b));
+    for (const [filename, sql] of sortedMigrations) {
+      const response = await fetch(
+        `${SUPABASE_MGMT_API}/projects/${projectRef}/database/query`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: sql }),
+        },
+      );
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Migration ${filename}: ${response.status} ${body}`);
+      }
+    }
+    migrateSpinner.stop('Database ready');
+  } catch (err) {
+    migrateSpinner.stop('Migration failed');
+    const message = err instanceof Error ? err.message : String(err);
+    bail(`Database migration failed: ${message}`);
+  }
+
+  // Scaffold a temp project directory with edge function
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'open-brain-'));
 
   try {
     scaffoldProject(tmpDir);
-
-    // Link project
-    const linkSpinner = ui.spinner();
-    linkSpinner.start('Linking Supabase project...');
-    try {
-      execSync(
-        `npx supabase link --project-ref ${projectRef}`,
-        { cwd: tmpDir, stdio: 'pipe', timeout: 30_000 },
-      );
-      linkSpinner.stop('Project linked');
-    } catch (err) {
-      linkSpinner.stop('Link warning (may already be linked)');
-    }
-
-    // Run migrations
-    const migrateSpinner = ui.spinner();
-    migrateSpinner.start('Running database migrations...');
-    try {
-      execSync('npx supabase db push', {
-        cwd: tmpDir,
-        stdio: 'pipe',
-        timeout: 120_000,
-      });
-      migrateSpinner.stop('Database ready');
-    } catch (err) {
-      migrateSpinner.stop('Migration failed');
-      const message = err instanceof Error ? err.message : String(err);
-      bail(`Database migration failed: ${message}`);
-    }
 
     // Set secrets
     const secretSpinner = ui.spinner();
@@ -229,10 +244,11 @@ export async function runDeploy(): Promise<void> {
       if (anthropicKey) {
         secrets.push(`ANTHROPIC_API_KEY=${anthropicKey}`);
       }
-      execSync(`npx supabase secrets set ${secrets.join(' ')}`, {
+      execSync(`npx supabase secrets set --project-ref ${projectRef} ${secrets.join(' ')}`, {
         cwd: tmpDir,
         stdio: 'pipe',
         timeout: 30_000,
+        env: cliEnv,
       });
       secretSpinner.stop('Secrets configured');
     } catch (err) {
@@ -245,11 +261,15 @@ export async function runDeploy(): Promise<void> {
     const deploySpinner = ui.spinner();
     deploySpinner.start('Deploying MCP server...');
     try {
-      execSync('npx supabase functions deploy open-brain-mcp --no-verify-jwt', {
-        cwd: tmpDir,
-        stdio: 'pipe',
-        timeout: 120_000,
-      });
+      execSync(
+        `npx supabase functions deploy open-brain-mcp --no-verify-jwt --project-ref ${projectRef}`,
+        {
+          cwd: tmpDir,
+          stdio: 'pipe',
+          timeout: 120_000,
+          env: cliEnv,
+        },
+      );
       deploySpinner.stop('MCP server deployed');
     } catch (err) {
       deploySpinner.stop('Deploy failed');
@@ -297,7 +317,7 @@ export async function runDeploy(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function scaffoldProject(tmpDir: string): void {
-  // supabase/config.toml (minimal)
+  // supabase/config.toml (minimal, required by CLI for functions deploy)
   const supabaseDir = path.join(tmpDir, 'supabase');
   fs.mkdirSync(supabaseDir, { recursive: true });
   fs.writeFileSync(
@@ -305,14 +325,7 @@ function scaffoldProject(tmpDir: string): void {
     '[project]\nid = "open-brain"\n',
   );
 
-  // Migration files
-  const migrationsDir = path.join(supabaseDir, 'migrations');
-  fs.mkdirSync(migrationsDir, { recursive: true });
-  for (const [filename, sql] of Object.entries(MIGRATIONS)) {
-    fs.writeFileSync(path.join(migrationsDir, filename), sql);
-  }
-
-  // Edge function
+  // Edge function (migrations run via Management API, not from files)
   const fnDir = path.join(supabaseDir, 'functions', 'open-brain-mcp');
   fs.mkdirSync(fnDir, { recursive: true });
   fs.writeFileSync(path.join(fnDir, 'index.ts'), EDGE_FUNCTION_CODE);
