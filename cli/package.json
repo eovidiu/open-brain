@@ -1,6 +1,6 @@
 {
   "name": "@eovidiu/open-brain-setup",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "One-command setup for Open Brain — deploy your AI memory to Supabase",
   "type": "module",
   "bin": {
