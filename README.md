@@ -97,7 +97,7 @@ These clients use stdio transport. Paste this into your config file (the wizard 
     "open-brain": {
       "command": "npx",
       "args": [
-        "mcp-remote",
+        "mcp-remote@latest",
         "https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp",
         "--header",
         "Authorization: Bearer YOUR_SECRET_HERE"
@@ -121,7 +121,7 @@ Claude Code supports HTTP transport natively. Add to `~/.claude.json` or `.mcp.j
 {
   "mcpServers": {
     "open-brain": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp",
       "headers": {
         "Authorization": "Bearer YOUR_SECRET_HERE"

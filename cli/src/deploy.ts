@@ -294,7 +294,7 @@ export async function runDeploy(): Promise<void> {
       'open-brain': {
         command: 'npx',
         args: [
-          'mcp-remote',
+          'mcp-remote@latest',
           mcpUrl,
           '--header',
           `Authorization: Bearer ${mcpClientSecret}`,
@@ -307,7 +307,7 @@ export async function runDeploy(): Promise<void> {
   const codeConfig = {
     mcpServers: {
       'open-brain': {
-        type: 'streamable-http' as const,
+        type: 'http' as const,
         url: mcpUrl,
         headers: {
           Authorization: `Bearer ${mcpClientSecret}`,
