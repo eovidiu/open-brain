@@ -17,7 +17,7 @@
     "@supabase/supabase-js": "^2.99.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
-    "openai": "^6.27.0",
+    "openai": "^6.35.0",
     "zod": "^4.3.6"
   },
   "author": "Ovidiu Eftimie",
