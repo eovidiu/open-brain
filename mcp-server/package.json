@@ -18,7 +18,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "openai": "^6.27.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.2"
   },
   "author": "Ovidiu Eftimie",
   "license": "MIT",
