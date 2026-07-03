@@ -2,7 +2,7 @@
   "project": "open-brain",
   "created": "2026-07-03",
   "total_features": 9,
-  "passing": 1,
+  "passing": 2,
   "features": [
     {
       "id": "F001",
@@ -38,7 +38,7 @@
       "id": "F002",
       "description": "MCP server DB layer on Neon: replace the supabase-js client factory (mcp-server/src/db/client.ts) with @neondatabase/serverless, rewrite all queries.ts functions to plain SQL, remove @supabase/supabase-js from mcp-server/package.json, add @vitest/coverage-v8 so coverage is measurable. ACCEPTANCE: existing Vitest suite green + new integration round-trip test against a Neon branch (capture_memory -> search_brain finds it -> list_recent lists it -> get_stats counts it); coverage >= 95% on touched code.",
       "priority": 1,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "mcp-server/src/db/",
         "mcp-server/package.json"
@@ -47,12 +47,16 @@
         "F001"
       ],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "mcp-server/src/db/queries.test.ts, mcp-server/src/db/client.test.ts, mcp-server/src/db/round-trip.test.ts",
+      "coverage": "client.ts 100%, queries.ts 100% lines / 97.7% branch (>=95% gate met). Disclosed exception: transport/sse.ts at 0% — 3 lines touched as forced compile-fix (health endpoint used getSupabaseClient); file has no test harness and is deleted by F006 per AD-4.",
+      "notes": "Acceptance verified 2026-07-03: full suite 77/77 green incl. round-trip against Neon branch 'test' (br-morning-morning-ab8igqsz): capture -> search (similarity > 0.99) -> list_recent -> get_stats, plus AD-6 degradation path (embedding failure -> pending row, NULL embedding). supabase-js removed from mcp-server/package.json.",
       "correction_cycles": 0,
-      "scope_expansions": [],
-      "approaches_tried": [],
+      "scope_expansions": [
+        "mcp-server/src/transport/sse.ts: health endpoint called getSupabaseClient directly; removing supabase-js forced a 3-line rewrite to plain SQL via getDb. File is removed entirely by F006 (AD-4)."
+      ],
+      "approaches_tried": [
+        "TDD: 25 unit tests mocking the neon tagged-template driver (red on supabase impl), then rewrite. Retry increments became single atomic UPDATE ... CASE statements (old code was racy read-then-update). Integration test env-gated on NEON_TEST_DATABASE_URL, LLM services stubbed, DB real. Worked with one type fix: ReturnType<typeof neon> is a config-dependent union; pin NeonQueryFunction<false, false>."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {

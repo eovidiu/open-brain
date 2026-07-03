@@ -37,3 +37,18 @@
   (workers/shared/) - both unblocked; Phase 1 remains single-session per
   harness.json
 - Blockers: none
+
+## Session 2 (continued) - F002
+- Feature: F002 - mcp-server DB layer on @neondatabase/serverless
+- Status: complete (passing)
+- Tests: 77 passing (25 new unit tests for client/queries + 2-test integration
+  round-trip, env-gated on NEON_TEST_DATABASE_URL)
+- Coverage: client.ts 100%, queries.ts 100%/97.7% branch; disclosed exception
+  sse.ts 0% (3-line forced compile-fix, file deleted by F006)
+- Neon branch "test" (br-morning-morning-ab8igqsz) created on project
+  divine-waterfall-85490868 for integration tests; left in place for F003+
+- supabase-js removed from mcp-server; .env.example still documents SUPABASE_*
+  vars (F009 scope, do not fix early without Ovidiu)
+- Next: F003 (workers/shared/) closes Phase 1; then Phase 2 agent-teams
+  (F004/F005/F006) per harness.json team_structure
+- Blockers: none
