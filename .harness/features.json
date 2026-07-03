@@ -2,7 +2,7 @@
   "project": "open-brain",
   "created": "2026-07-03",
   "total_features": 9,
-  "passing": 2,
+  "passing": 3,
   "features": [
     {
       "id": "F001",
@@ -71,7 +71,7 @@
       "id": "F003",
       "description": "Shared Worker DB module at workers/shared/: Neon driver wrapper, env handling, and the common SQL used by the Workers. ACCEPTANCE: module builds standalone; unit tests cover connection creation, query helpers, and a ::vector cast round-trip (insert an embedding array, read it back identically).",
       "priority": 2,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "workers/shared/"
       ],
@@ -79,12 +79,14 @@
         "F001"
       ],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "workers/shared/src/index.test.ts, workers/shared/src/round-trip.test.ts",
+      "coverage": "100% statements/branch/functions/lines on index.ts (types.ts is declaration-only, no runtime code).",
+      "notes": "Acceptance verified 2026-07-03: standalone build green (own package.json/tsconfig, not a root workspace — 'builds standalone' taken literally, zero root coupling); 17/17 tests incl. ::vector round-trip against Neon branch 'test' (1536-dim embedding inserted and read back identically). API takes the sql handle as a parameter (createDb(url)) because Workers get config from env bindings, not process.env. TDD slip: tests and implementation written in the same batch, red phase not observed for this feature.",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "Mirrored the F002 queries.ts idiom (sanitized errors, toIso/parseVector normalization, atomic retry increments) with the connection passed explicitly. Green first run."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {

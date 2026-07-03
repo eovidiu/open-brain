@@ -52,3 +52,16 @@
 - Next: F003 (workers/shared/) closes Phase 1; then Phase 2 agent-teams
   (F004/F005/F006) per harness.json team_structure
 - Blockers: none
+
+## Session 2 (continued) - F003, Phase 1 complete
+- Feature: F003 - workers/shared standalone Neon DB module
+- Status: complete (passing). Phase 1 (F001-F003) fully done.
+- Tests: 17/17 in workers/shared (incl. ::vector round-trip on the Neon test
+  branch); mcp-server suite 77/77 unaffected
+- Coverage: 100% on workers/shared/src/index.ts
+- Design: standalone package (not a root workspace); helpers take the sql
+  handle as a parameter because Workers use env bindings, not process.env
+- Next: Phase 2 agent-teams (F004 capture, F005 retry, F006 MCP Worker with
+  plan approval, Opus reviewer) per harness.json - present team plan to Ovidiu
+  at next session start
+- Blockers: none

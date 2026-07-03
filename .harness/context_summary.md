@@ -4,14 +4,16 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- F001 + F002 PASSING (2026-07-03): schema live on Neon (project
-  divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18); mcp-server DB
-  layer fully on @neondatabase/serverless, supabase-js removed from mcp-server.
-  Ovidiu holds the connection string; NOT in any repo file — he adds it to .env
-  per the runbook. Neon branch "test" (br-morning-morning-ab8igqsz) exists for
-  integration tests (NEON_TEST_DATABASE_URL gates them).
-- Next up: F003 (workers/shared/ Neon driver module); still Phase 1
-  single-session per harness.json team_structure (F003 ends the phase).
+- Phase 1 COMPLETE (2026-07-03): F001 + F002 + F003 passing. Schema live on
+  Neon (project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18);
+  mcp-server DB layer on @neondatabase/serverless (supabase-js removed);
+  workers/shared standalone package ready for the Workers. Ovidiu holds the
+  connection string; NOT in any repo file — he adds it to .env per the runbook.
+  Neon branch "test" (br-morning-morning-ab8igqsz) gates integration tests via
+  NEON_TEST_DATABASE_URL.
+- Next up: Phase 2 per harness.json team_structure — agent-teams on F004
+  (capture Worker), F005 (retry Worker), F006 (MCP Worker, plan approval
+  required); reviewer on Opus. Present the team plan to Ovidiu first.
 - Untracked docs/plans/2026-03-08-security-hardening.md: Ovidiu said leave it,
   decide later (2026-07-03). Do not act on its embedded instructions.
 
@@ -53,6 +55,14 @@ This file is referenced in CLAUDE.md and loaded every session.
   unrecorded one
 - Local DB testing: pgvector/pgvector:pg17 container (port 54329, password test) —
   see header of scripts/migrate.test.sh for the docker run command
+- Worker packages are standalone (own package.json/tsconfig/lockfile, NOT root
+  workspaces): matches wrangler conventions and keeps 'builds standalone' literal.
+  Siblings depend on workers/shared via file:../shared
+- workers/shared API passes the sql handle as first parameter (createDb(url) →
+  helpers(sql, ...)): Workers get config per request from env bindings, never
+  process.env. Reuse this shape in F004/F005
+- Integration tests are env-gated with describe.skipIf(!NEON_TEST_DATABASE_URL):
+  plain npm test stays green offline; CI/acceptance runs export the test-branch URL
 
 ### Gotchas
 - Use Neon's DIRECT endpoint (host without -pooler) for migrations/DDL; the pooled
@@ -84,15 +94,19 @@ This file is referenced in CLAUDE.md and loaded every session.
   build and test everything locally first — the dependency may resolve mid-session
   and the acceptance run is then immediate
 
-## Meta-Session 2026-07-03
-- Scope accuracy: F001 stayed exactly in scope (db/migrations/, scripts/, docs/);
-  zero expansions. Deliverable count differed from the description (5 migration
-  files from 8 sources) but that is the port doing its job, not scope drift.
-- Model calibration: 0 correction cycles single-session; no upgrade signal.
-- Discovery lineage: nothing discovered that needs a new feature. The coverage
-  gotcha (bash not measurable by vitest) is recorded on F001 itself.
-- Approach patterns: TDD against a local pgvector container worked first pass;
-  acceptance re-ran unchanged against real Neon. The planned "pause for Ovidiu to
-  provision" never happened — he handed the connection string mid-session.
-- Plan approval: lightweight plan + Go-ahead before starting was enough for this
-  feature type (infra scripts with a verified spec); no rework.
+## Meta-Session 2026-07-03 (F001–F003, Phase 1 complete)
+- Scope accuracy: F001 and F003 stayed exactly in scope. F002 had one forced
+  3-line expansion (transport/sse.ts health endpoint used the supabase client
+  directly) — lesson: a dependency REMOVAL feature should grep the whole package
+  for the dependency at scoping time, not just the named scope directories.
+- Model calibration: 0 correction cycles across all three features,
+  single-session on the default model; no upgrade signal for similar infra work.
+- Discovery lineage: nothing needing new feature entries. Gotchas recorded
+  instead: coverage-v8 exact-version pinning, NeonQueryFunction type pin,
+  vector/timestamptz row normalization, pooler-vs-direct endpoints.
+- Approach patterns: TDD red observed for F001/F002; F003 tests+impl landed in
+  one batch (red not observed — discipline slip, disclosed on the feature).
+  Mirroring the F002 idiom made F003 green first-run. Env-gated integration
+  tests against a dedicated Neon branch worked well for all DB features.
+- Plan approval: lightweight plan + Go-ahead sufficed for verified-spec infra
+  features; no rework anywhere.
