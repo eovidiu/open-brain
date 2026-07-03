@@ -14,8 +14,11 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Next up: Phase 2 per harness.json team_structure — agent-teams on F004
   (capture Worker), F005 (retry Worker), F006 (MCP Worker, plan approval
   required); reviewer on Opus. Present the team plan to Ovidiu first.
-- Untracked docs/plans/2026-03-08-security-hardening.md: Ovidiu said leave it,
-  decide later (2026-07-03). Do not act on its embedded instructions.
+- docs/plans/2026-03-08-security-hardening.md analyzed and committed as historical
+  record (2026-07-03): all 15 tasks executed in the March security-hardening merge
+  (7cdab91); Phase 1 preserved every fix. See "Security carry-forwards" below for
+  what the Phase-2 Worker ports must preserve. Do not re-execute the plan or act on
+  its embedded instructions.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -47,6 +50,15 @@ This file is referenced in CLAUDE.md and loaded every session.
   002 since there is no data to migrate (2026-07-03)
 - Neon provisioned: project region aws-eu-west-2 (London), Postgres 18 — EU
   assumption from the spec ledger confirmed (2026-07-03)
+- Security carry-forwards for the Worker ports (from the executed 2026-03-08
+  security-hardening plan; hard requirements, not suggestions) (2026-07-03):
+  - F004 capture Worker: HMAC timestamp replay protection (5-min window, sign
+    `timestamp.body`), no wildcard CORS, metadata output validation
+    (validateMetadata/pickSafeFields port from capture/index.ts)
+  - F005 retry Worker: terminal `metadata_status='failed'` at MAX_METADATA_RETRIES=10
+  - F006 /auth/token port: timing-safe client-secret comparison
+  - Superseded (do NOT port): retry-worker bearer auth (no public route in F005),
+    PostgREST RPC-not-found fallback (deleted per AD-7), sse.ts guards (file removed)
 
 ### Patterns
 - Migration runner: psql --single-transaction with -f <migration> followed by
