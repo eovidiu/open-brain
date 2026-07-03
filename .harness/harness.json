@@ -10,5 +10,59 @@
     "ssh_key": "~/.ssh/id_ed25519",
     "ssh_host": "github.com"
   },
-  "team_structure": null
+  "team_structure": {
+    "mode": "hybrid",
+    "phases": [
+      {
+        "phase": 1,
+        "mode": "single-session",
+        "features": ["F001", "F002", "F003"],
+        "notes": "Sequential chokepoints. F001 pauses on Ovidiu provisioning Neon from the runbook."
+      },
+      {
+        "phase": 2,
+        "mode": "agent-teams",
+        "teammates": [
+          {
+            "role": "capture-worker",
+            "scope": ["workers/capture/"],
+            "features": ["F004"],
+            "model": "sonnet",
+            "isolation": "worktree",
+            "require_plan_approval": false
+          },
+          {
+            "role": "retry-worker",
+            "scope": ["workers/retry/"],
+            "features": ["F005"],
+            "model": "sonnet",
+            "isolation": "worktree",
+            "require_plan_approval": false
+          },
+          {
+            "role": "mcp-worker",
+            "scope": ["workers/mcp/", "mcp-server/src/transport/"],
+            "features": ["F006"],
+            "model": "sonnet",
+            "isolation": "worktree",
+            "require_plan_approval": true
+          },
+          {
+            "role": "reviewer",
+            "scope": [],
+            "features": ["F004", "F005", "F006"],
+            "model": "opus",
+            "require_plan_approval": false
+          }
+        ],
+        "notes": "Three independent Worker scopes after F003; reviewer on Opus because the auth ports (JWT/HMAC) are security-sensitive. F006 has plan approval: it establishes the createMcpHandler pattern."
+      },
+      {
+        "phase": 3,
+        "mode": "single-session",
+        "features": ["F007", "F008", "F009"],
+        "notes": "Sequential wrap-up: CLI rewrite, cutover (needs Ovidiu for domain + decommission), docs/spec PR."
+      }
+    ]
+  }
 }
