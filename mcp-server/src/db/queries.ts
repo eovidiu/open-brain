@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './client.js';
+import { getDb } from './client.js';
 import type {
   CaptureResponse,
   EmbeddingStatus,
@@ -18,6 +18,25 @@ function sanitizeDbError(context: string, error: { message: string }): Error {
   return new Error(`Database operation failed: ${context}`);
 }
 
+async function run<T>(context: string, query: () => Promise<T>): Promise<T> {
+  try {
+    return await query();
+  } catch (error) {
+    throw sanitizeDbError(context, error as Error);
+  }
+}
+
+// timestamptz values arrive as Date (driver-parsed) or string; normalize to ISO
+function toIso(value: unknown): string {
+  return new Date(value as string | Date).toISOString();
+}
+
+// vector columns arrive as their text form, e.g. "[0.1,0.2]"
+function parseVector(value: unknown): number[] | null {
+  if (value == null) return null;
+  return typeof value === 'string' ? (JSON.parse(value) as number[]) : (value as number[]);
+}
+
 // Insert a new memory record and return a CaptureResponse
 export async function insertMemory(record: {
   id: string;
@@ -29,71 +48,57 @@ export async function insertMemory(record: {
   captured_at: string;
   source: MemorySource;
 }): Promise<CaptureResponse> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
+  const embedding = record.embedding ? JSON.stringify(record.embedding) : null;
 
-  const { data, error } = await supabase
-    .from('memories')
-    .insert({
-      id: record.id,
-      raw_text: record.raw_text,
-      embedding: record.embedding,
-      embedding_status: record.embedding_status,
-      metadata: record.metadata,
-      metadata_status: record.metadata_status,
-      captured_at: record.captured_at,
-      source: record.source,
-      retry_count_embedding: 0,
-      retry_count_metadata: 0,
-      last_processing_error: null,
-    })
-    .select('id, captured_at, source, embedding_status, metadata_status, metadata')
-    .single();
-
-  if (error) {
-    throw sanitizeDbError('insert memory', error);
-  }
+  const rows = await run('insert memory', () => sql`
+    INSERT INTO memories (
+      id, raw_text, embedding, embedding_status, metadata, metadata_status,
+      captured_at, source, retry_count_embedding, retry_count_metadata,
+      last_processing_error
+    )
+    VALUES (
+      ${record.id}, ${record.raw_text}, ${embedding}::vector,
+      ${record.embedding_status}, ${JSON.stringify(record.metadata)}::jsonb,
+      ${record.metadata_status}, ${record.captured_at}, ${record.source},
+      0, 0, NULL
+    )
+    RETURNING id, captured_at, source, embedding_status, metadata_status, metadata
+  `);
+  const row = rows[0];
 
   return {
-    id: data.id,
-    captured_at: data.captured_at,
-    source: data.source as MemorySource,
-    embedding_status: data.embedding_status as EmbeddingStatus,
-    metadata_status: data.metadata_status as 'ready' | 'degraded',
-    metadata: data.metadata as MemoryMetadata,
+    id: row.id as string,
+    captured_at: toIso(row.captured_at),
+    source: row.source as MemorySource,
+    embedding_status: row.embedding_status as EmbeddingStatus,
+    metadata_status: row.metadata_status as 'ready' | 'degraded',
+    metadata: row.metadata as MemoryMetadata,
   };
 }
 
-// Vector similarity search using pgvector via RPC
+// Vector similarity search using pgvector
 export async function searchMemories(
   queryVector: number[],
   n: number,
   filterType?: string,
   since?: string,
 ): Promise<SearchResult[]> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  const params: Record<string, unknown> = {
-    query_embedding: queryVector,
-    match_count: n,
-  };
+  const rows = await run('search memories', () => sql`
+    SELECT * FROM search_memories(
+      ${JSON.stringify(queryVector)}::vector,
+      ${n},
+      ${filterType ?? null},
+      ${since ?? null}
+    )
+  `);
 
-  if (filterType) {
-    params.filter_type = filterType;
-  }
-  if (since) {
-    params.filter_since = since;
-  }
-
-  const { data, error } = await supabase.rpc('search_memories', params);
-
-  if (error) {
-    throw sanitizeDbError('search memories', error);
-  }
-
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  return rows.map((row) => ({
     id: row.id as string,
     raw_text: row.raw_text as string,
-    captured_at: row.captured_at as string,
+    captured_at: toIso(row.captured_at),
     source: row.source as MemorySource,
     metadata: row.metadata as MemoryMetadata,
     metadata_status: row.metadata_status as 'ready' | 'degraded',
@@ -107,32 +112,31 @@ export async function listRecentMemories(
   n: number,
   filterType?: string,
 ): Promise<Memory[]> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  let query = supabase
-    .from('memories')
-    .select('*')
-    .order('captured_at', { ascending: false })
-    .limit(n);
+  const rows = await run('list memories', () =>
+    filterType
+      ? sql`
+          SELECT * FROM memories
+          WHERE metadata->>'type' = ${filterType}
+          ORDER BY captured_at DESC
+          LIMIT ${n}
+        `
+      : sql`
+          SELECT * FROM memories
+          ORDER BY captured_at DESC
+          LIMIT ${n}
+        `,
+  );
 
-  if (filterType) {
-    query = query.eq('metadata->>type', filterType);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw sanitizeDbError('list memories', error);
-  }
-
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  return rows.map((row) => ({
     id: row.id as string,
     raw_text: row.raw_text as string,
-    embedding: row.embedding as number[] | null,
+    embedding: parseVector(row.embedding),
     embedding_status: row.embedding_status as EmbeddingStatus,
     metadata: row.metadata as MemoryMetadata,
     metadata_status: row.metadata_status as 'ready' | 'degraded',
-    captured_at: row.captured_at as string,
+    captured_at: toIso(row.captured_at),
     source: row.source as MemorySource,
     retry_count_embedding: row.retry_count_embedding as number,
     retry_count_metadata: row.retry_count_metadata as number,
@@ -142,15 +146,12 @@ export async function listRecentMemories(
 
 // Aggregate stats query
 export async function getStats(): Promise<StatsResponse> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  const { data, error } = await supabase.rpc('get_memory_stats');
-
-  if (error) {
-    throw sanitizeDbError('get stats', error);
-  }
-
-  const raw = data as Record<string, unknown>;
+  const rows = await run('get stats', () => sql`
+    SELECT get_memory_stats() AS stats
+  `);
+  const raw = rows[0].stats as Record<string, unknown>;
 
   return {
     total_memories: raw.total_memories as number,
@@ -165,24 +166,22 @@ export async function getStats(): Promise<StatsResponse> {
 
 // Read system_config singleton
 export async function getSystemConfig(): Promise<SystemConfig> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  const { data, error } = await supabase
-    .from('system_config')
-    .select('*')
-    .limit(1)
-    .single();
-
-  if (error) {
-    throw sanitizeDbError('read system config', error);
-  }
+  const config = await run('read system config', async () => {
+    const rows = await sql`SELECT * FROM system_config WHERE id = 1`;
+    if (rows.length === 0) {
+      throw new Error('system_config row missing');
+    }
+    return rows[0];
+  });
 
   return {
-    id: data.id as number,
-    embedding_model: data.embedding_model as string,
-    embedding_dimensions: data.embedding_dimensions as number,
-    created_at: data.created_at as string,
-    updated_at: data.updated_at as string,
+    id: config.id as number,
+    embedding_model: config.embedding_model as string,
+    embedding_dimensions: config.embedding_dimensions as number,
+    created_at: toIso(config.created_at),
+    updated_at: toIso(config.updated_at),
   };
 }
 
@@ -191,20 +190,15 @@ export async function updateMemoryEmbedding(
   id: string,
   embedding: number[],
 ): Promise<void> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  const { error } = await supabase
-    .from('memories')
-    .update({
-      embedding,
-      embedding_status: 'ready' as EmbeddingStatus,
-      last_processing_error: null,
-    })
-    .eq('id', id);
-
-  if (error) {
-    throw sanitizeDbError('update embedding', error);
-  }
+  await run('update embedding', () => sql`
+    UPDATE memories SET
+      embedding = ${JSON.stringify(embedding)}::vector,
+      embedding_status = 'ready',
+      last_processing_error = NULL
+    WHERE id = ${id}
+  `);
 }
 
 // Set metadata and mark status as ready
@@ -212,20 +206,15 @@ export async function updateMemoryMetadata(
   id: string,
   metadata: MemoryMetadata,
 ): Promise<void> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  const { error } = await supabase
-    .from('memories')
-    .update({
-      metadata,
-      metadata_status: 'ready' as const,
-      last_processing_error: null,
-    })
-    .eq('id', id);
-
-  if (error) {
-    throw sanitizeDbError('update metadata', error);
-  }
+  await run('update metadata', () => sql`
+    UPDATE memories SET
+      metadata = ${JSON.stringify(metadata)}::jsonb,
+      metadata_status = 'ready',
+      last_processing_error = NULL
+    WHERE id = ${id}
+  `);
 }
 
 // Increment embedding retry count, set error, mark failed if terminal
@@ -233,34 +222,18 @@ export async function incrementEmbeddingRetry(
   id: string,
   processingError: string,
 ): Promise<void> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  // Read current retry count
-  const { data: current, error: readError } = await supabase
-    .from('memories')
-    .select('retry_count_embedding')
-    .eq('id', id)
-    .single();
-
-  if (readError) {
-    throw sanitizeDbError('read embedding retry count', readError);
-  }
-
-  const newCount = (current.retry_count_embedding as number) + 1;
-  const isFailed = newCount >= MAX_EMBEDDING_RETRIES;
-
-  const { error: updateError } = await supabase
-    .from('memories')
-    .update({
-      retry_count_embedding: newCount,
-      last_processing_error: processingError,
-      ...(isFailed ? { embedding_status: 'failed' as EmbeddingStatus } : {}),
-    })
-    .eq('id', id);
-
-  if (updateError) {
-    throw sanitizeDbError('increment embedding retry', updateError);
-  }
+  await run('increment embedding retry', () => sql`
+    UPDATE memories SET
+      retry_count_embedding = retry_count_embedding + 1,
+      last_processing_error = ${processingError},
+      embedding_status = CASE
+        WHEN retry_count_embedding + 1 >= ${MAX_EMBEDDING_RETRIES} THEN 'failed'
+        ELSE embedding_status
+      END
+    WHERE id = ${id}
+  `);
 }
 
 // Increment metadata retry count, set error, mark failed if terminal
@@ -268,32 +241,16 @@ export async function incrementMetadataRetry(
   id: string,
   processingError: string,
 ): Promise<void> {
-  const supabase = getSupabaseClient();
+  const sql = getDb();
 
-  // Read current retry count
-  const { data: current, error: readError } = await supabase
-    .from('memories')
-    .select('retry_count_metadata')
-    .eq('id', id)
-    .single();
-
-  if (readError) {
-    throw sanitizeDbError('read metadata retry count', readError);
-  }
-
-  const newCount = (current.retry_count_metadata as number) + 1;
-  const isFailed = newCount >= MAX_METADATA_RETRIES;
-
-  const { error: updateError } = await supabase
-    .from('memories')
-    .update({
-      retry_count_metadata: newCount,
-      last_processing_error: processingError,
-      ...(isFailed ? { metadata_status: 'failed' } : {}),
-    })
-    .eq('id', id);
-
-  if (updateError) {
-    throw sanitizeDbError('increment metadata retry', updateError);
-  }
+  await run('increment metadata retry', () => sql`
+    UPDATE memories SET
+      retry_count_metadata = retry_count_metadata + 1,
+      last_processing_error = ${processingError},
+      metadata_status = CASE
+        WHEN retry_count_metadata + 1 >= ${MAX_METADATA_RETRIES} THEN 'failed'
+        ELSE metadata_status
+      END
+    WHERE id = ${id}
+  `);
 }

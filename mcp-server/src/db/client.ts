@@ -1,20 +1,19 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 
-let client: SupabaseClient | null = null;
+type Db = NeonQueryFunction<false, false>;
 
-export function getSupabaseClient(): SupabaseClient {
-  if (client) return client;
+let db: Db | null = null;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export function getDb(): Db {
+  if (db) return db;
 
-  if (!url || !key) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+  const url = process.env.DATABASE_URL;
+
+  if (!url) {
+    throw new Error('DATABASE_URL must be set');
   }
 
-  client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  db = neon(url);
 
-  return client;
+  return db;
 }

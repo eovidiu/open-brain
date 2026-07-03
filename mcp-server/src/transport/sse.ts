@@ -67,14 +67,13 @@ export async function startSSETransport(server: Server, port: number): Promise<v
   app.get('/health', async (_req: Request, res: Response) => {
     try {
       const config = await getSystemConfig();
-      const { getSupabaseClient } = await import('../db/client.js');
-      const supabase = getSupabaseClient();
-      const { count } = await supabase.from('memories').select('*', { count: 'exact', head: true });
+      const { getDb } = await import('../db/client.js');
+      const rows = await getDb()`SELECT count(*)::int AS count FROM memories`;
 
       res.json({
         status: 'ok',
         db_connected: true,
-        total_memories: count ?? 0,
+        total_memories: (rows[0].count as number) ?? 0,
         embedding_model: config.embedding_model,
       });
     } catch (err) {
