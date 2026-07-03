@@ -1,0 +1,13 @@
+# Claude Progress Log
+# Project: open-brain
+# Created: 2026-07-03
+
+## Session 1 - Initialization
+- Created harness v3.5.0 scaffolding (.harness/, quality-gate hooks, CLAUDE.md)
+- Stack: TypeScript, Node.js ESM, npm workspaces (mcp-server, cli), Vitest
+- Git identity: Ovidiu Eftimie <eovidiu@gmail.com> (github.com, ~/.ssh/id_ed25519)
+- Direction set by Ovidiu: migrate from Supabase to Neon.tech (MCP server on the Neon
+  stack; Cloudflare account available for compute). Features to be defined after
+  codebase analysis and /issue-prep spec review.
+- NOTE: hooks bind to the session launch directory. Launch future sessions from
+  open-brain/ (this repo root), not the parent wrapper directory.

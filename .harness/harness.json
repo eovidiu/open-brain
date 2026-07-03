@@ -1,0 +1,14 @@
+{
+  "project": "open-brain",
+  "stack": "typescript",
+  "stack_detail": "Node.js ESM, npm workspaces (mcp-server, cli), Vitest, Supabase (migrating to Neon.tech + Cloudflare Workers)",
+  "created": "2026-07-03",
+  "version": "3.5.0",
+  "git_identity": {
+    "user_name": "Ovidiu Eftimie",
+    "user_email": "eovidiu@gmail.com",
+    "ssh_key": "~/.ssh/id_ed25519",
+    "ssh_host": "github.com"
+  },
+  "team_structure": null
+}
