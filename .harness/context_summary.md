@@ -4,8 +4,11 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- Currently working on: harness initialization; planning Supabase → Neon.tech migration
-- Next up: migration feature decomposition, /issue-prep spec review, then implementation
+- Migration spec VERIFIED (issue-prep: SV ASK → 8 answers → RV PASS, 2026-07-03);
+  features F001–F009 in features.json with spec hashes; full spec in
+  docs/plans/2026-07-03-neon-migration.md
+- Next up: team structure decision, then implementation starting with F001 (Neon
+  migrations + provisioning runbook — Ovidiu provisions Neon himself from the runbook)
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -21,6 +24,16 @@ This file is referenced in CLAUDE.md and loaded every session.
 ### Decisions
 - Migrate Open Brain off Supabase onto Neon.tech; Cloudflare account available for the
   compute pieces Supabase edge functions currently cover (2026-07-03)
+- AD-1: Neon serverless driver + plain SQL, not the PostgREST-compatible Data API (2026-07-03)
+- AD-2: retry scheduling = Cloudflare Cron Trigger, not pg_cron; retry Worker has no
+  public HTTP route (2026-07-03)
+- AD-3: drop RLS entirely; single least-privilege DB role; auth stays at HTTP layer (2026-07-03)
+- AD-4: remote MCP = stateless Streamable HTTP Worker via createMcpHandler(), free plan
+  verified sufficient; Express SSE host removed; stdio unchanged (2026-07-03)
+- Supabase data NOT preserved — fresh Neon start, downtime unconstrained (Ovidiu, 2026-07-03)
+- Spec §1.3 60-minute non-coder setup test dropped — personal-use; amendment via F009
+  spec PR (Ovidiu, 2026-07-03)
+- Delete capability stays in backlog (BI-001), not migration scope (Ovidiu, 2026-07-03)
 
 ### Patterns
 - (none yet)

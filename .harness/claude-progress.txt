@@ -11,3 +11,6 @@
   codebase analysis and /issue-prep spec review.
 - NOTE: hooks bind to the session launch directory. Launch future sessions from
   open-brain/ (this repo root), not the parent wrapper directory.
+- issue-prep: Neon migration spec verified (source: plan doc / conversation; SV verdict
+  ASK -> 8 questions answered -> RV PASS on cycle 1; not stamped - local-only mode,
+  no prep config). F001-F009 written to features.json with spec hashes.

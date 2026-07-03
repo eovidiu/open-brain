@@ -1,7 +1,279 @@
 {
   "project": "open-brain",
   "created": "2026-07-03",
-  "total_features": 0,
+  "total_features": 9,
   "passing": 0,
-  "features": []
+  "features": [
+    {
+      "id": "F001",
+      "description": "Neon schema migrations: port the 8 Supabase SQL migrations to db/migrations/ (drop pg_cron and RLS/anon/authenticated constructs; keep memories table with vector(1536) + HNSW index, system_config, and the three SQL functions), add a psql-based migration runner, and write the Neon provisioning runbook for Ovidiu. ACCEPTANCE: runner applies all migrations to an empty Neon database idempotently (second run is a no-op, exit 0); schema assertion script against a Neon branch confirms expected objects present and no pg_cron/RLS/anon/authenticated grants.",
+      "priority": 1,
+      "status": "pending",
+      "scope": [
+        "db/migrations/",
+        "scripts/",
+        "docs/"
+      ],
+      "depends_on": [],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "8def3b61331ca6763daa7757b5ddc36d0a758cff977ee4277424955eae2015a0",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F002",
+      "description": "MCP server DB layer on Neon: replace the supabase-js client factory (mcp-server/src/db/client.ts) with @neondatabase/serverless, rewrite all queries.ts functions to plain SQL, remove @supabase/supabase-js from mcp-server/package.json, add @vitest/coverage-v8 so coverage is measurable. ACCEPTANCE: existing Vitest suite green + new integration round-trip test against a Neon branch (capture_memory -> search_brain finds it -> list_recent lists it -> get_stats counts it); coverage >= 95% on touched code.",
+      "priority": 1,
+      "status": "pending",
+      "scope": [
+        "mcp-server/src/db/",
+        "mcp-server/package.json"
+      ],
+      "depends_on": [
+        "F001"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "cdfed1198e2054f4b72dc9db7bfb2e1ebab5587eee7bb18650bda0ec55d9871b",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F003",
+      "description": "Shared Worker DB module at workers/shared/: Neon driver wrapper, env handling, and the common SQL used by the Workers. ACCEPTANCE: module builds standalone; unit tests cover connection creation, query helpers, and a ::vector cast round-trip (insert an embedding array, read it back identically).",
+      "priority": 2,
+      "status": "pending",
+      "scope": [
+        "workers/shared/"
+      ],
+      "depends_on": [
+        "F001"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "e38c80d7298879751317729ecd5737725fc96a9bfcb6037e9a733594ab57d9f5",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F004",
+      "description": "Capture Worker: port supabase/functions/capture to a Cloudflare Worker fetch handler with JWT HS256 + HMAC auth preserved verbatim, Neon insert with explicit ::vector cast, and AD-6 degradation (on embedding/metadata failure the memory is stored with embedding_status 'pending'/'failed'). ACCEPTANCE: deployed Worker returns 201 with memory id for validly signed requests (JWT and HMAC paths both tested), 401 for invalid/missing auth, 400 for invalid payload; on forced embedding failure the row lands with embedding_status='pending'.",
+      "priority": 2,
+      "status": "pending",
+      "scope": [
+        "workers/capture/"
+      ],
+      "depends_on": [
+        "F003"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "4d6c51f1fbdbe19c44a48500c4d2e9a028afba31375b3d7cd5ae203b510d507f",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F005",
+      "description": "Retry Worker: port supabase/functions/retry-worker to a Cloudflare Worker scheduled() handler on a '* * * * *' Cron Trigger, no public HTTP route; retry eligibility comes solely from the get_retry_eligible_memories() SQL function (the PostgREST .or() fallback is not ported, per AD-7). ACCEPTANCE: cron-triggered run processes a seeded pending memory to complete within one scheduled invocation; HTTP requests to the Worker return 404/405; overlapping runs do not double-process (status transitions + batch limit).",
+      "priority": 2,
+      "status": "pending",
+      "scope": [
+        "workers/retry/"
+      ],
+      "depends_on": [
+        "F003"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "89585a99ffd640853769f63a107063863cb87b658994365b9c19da4f1f639617",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F006",
+      "description": "Remote MCP Worker: stateless Streamable HTTP via the Cloudflare Agents SDK createMcpHandler(), exposing the four existing tools (search_brain, list_recent, get_stats, capture_memory); JWT issuance endpoint (/auth/token) ported; Express SSE host (mcp-server/src/transport/sse.ts) removed. ACCEPTANCE: an MCP client connects over Streamable HTTP to the Worker URL with a JWT from /auth/token and successfully invokes all four tools; unauthenticated connection is rejected.",
+      "priority": 3,
+      "status": "pending",
+      "scope": [
+        "workers/mcp/",
+        "mcp-server/src/transport/"
+      ],
+      "depends_on": [
+        "F002",
+        "F003"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "19d26fd94de44f6501d68b2108e1c935f6cbe39e36bf6de4b0175d3bbfe8661b",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F007",
+      "description": "CLI setup rewrite (personal-use scope; 60-min non-coder test dropped per 2026-07-03 decision): Neon connection step, migration-runner step, wrangler deploy/secrets steps; validate.ts and status.ts off supabase-js; Supabase-specific steps removed. ACCEPTANCE: setup completes end-to-end on a machine with a Neon connection string and authenticated wrangler (writes .env, runs migrations, deploys the three Workers, sets secrets); status command reports all components healthy with no supabase-js dependency.",
+      "priority": 3,
+      "status": "pending",
+      "scope": [
+        "cli/src/"
+      ],
+      "depends_on": [
+        "F002",
+        "F004",
+        "F005"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "fa317166dd107bf0128c8cf41f39aba0b95a99b402bdacc00adff0be33b2ff9b",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F008",
+      "description": "Cutover + decommission: fresh Neon data (Supabase data explicitly not preserved, decided 2026-07-03), reconfigure Claude Desktop stdio env, point webhook callers at the capture Worker custom domain (workers.dev interim fallback), verify end-to-end, decommission Supabase project lxwtqegyhrfixnfctkne. Downtime unconstrained. ACCEPTANCE: runbook executed \u2014 Claude Desktop stdio works against Neon; capture Worker reachable on its domain; retry cron observed processing; Supabase decommissioned only after all other criteria observed green (rollback bound).",
+      "priority": 4,
+      "status": "pending",
+      "scope": [
+        "docs/"
+      ],
+      "depends_on": [
+        "F001",
+        "F002",
+        "F003",
+        "F004",
+        "F005",
+        "F006"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "37d097977c6a76e7f8aabf5b01774cf2a9299656fe0ad2d08bb079442087bc21",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "F009",
+      "description": "Docs + spec amendment PR: amend open-brain-spec.md \u00a71.3 (drop 60-minute non-coder setup test; personal-use), \u00a75 Architecture and \u00a78 Deployment for the Neon + Cloudflare stack; update README; .env.example gains DATABASE_URL and the missing OPENAI_METADATA_API_KEY, loses all SUPABASE_* vars; replace docs/deploy-to-supabase.md. ACCEPTANCE: spec PR merged or approved by Ovidiu; .env.example matches the new stack with no SUPABASE_* vars; README quickstart matches the new stack.",
+      "priority": 5,
+      "status": "pending",
+      "scope": [
+        "docs/",
+        "README.md",
+        ".env.example"
+      ],
+      "depends_on": [
+        "F001",
+        "F002",
+        "F003",
+        "F004",
+        "F005",
+        "F006",
+        "F007",
+        "F008"
+      ],
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "failure_reason": null,
+      "discovered_via": null,
+      "spec": {
+        "hash": "e73b3f20ed66445f5c08c82ac05a7f50cb262a85be19d7e5a8ca2fdd5c6f71be",
+        "verdict": "PASS",
+        "sv_version": "1.0",
+        "verified_at": "2026-07-03T15:52:41Z",
+        "source": "conversation"
+      }
+    }
+  ]
 }
