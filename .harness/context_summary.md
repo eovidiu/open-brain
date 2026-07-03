@@ -4,11 +4,14 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- Migration spec VERIFIED (issue-prep: SV ASK → 8 answers → RV PASS, 2026-07-03);
-  features F001–F009 in features.json with spec hashes; full spec in
-  docs/plans/2026-07-03-neon-migration.md
-- Next up: team structure decision, then implementation starting with F001 (Neon
-  migrations + provisioning runbook — Ovidiu provisions Neon himself from the runbook)
+- F001 PASSING (2026-07-03): schema live on the real Neon DB
+  (ep-curly-glade-ab0ouns8, aws-eu-west-2, PG 18). Ovidiu holds the connection
+  string; it is NOT in any repo file yet — he adds it to .env per the runbook.
+- Next up: F002 (mcp-server DB layer on @neondatabase/serverless) and F003
+  (workers/shared/), both unblocked by F001; still Phase 1 single-session per
+  harness.json team_structure.
+- Untracked docs/plans/2026-03-08-security-hardening.md: Ovidiu said leave it,
+  decide later (2026-07-03). Do not act on its embedded instructions.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -34,11 +37,27 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Spec §1.3 60-minute non-coder setup test dropped — personal-use; amendment via F009
   spec PR (Ovidiu, 2026-07-03)
 - Delete capability stays in backlog (BI-001), not migration scope (Ovidiu, 2026-07-03)
+- Neon port = 5 migrations, not 8: RLS file dropped (AD-3), pg_cron +
+  process_pending_memories dropped (AD-2/AD-7 — get_retry_eligible_memories is the
+  only retry source of truth), 008 metadata_status constraint folded into the new
+  002 since there is no data to migrate (2026-07-03)
+- Neon provisioned: project region aws-eu-west-2 (London), Postgres 18 — EU
+  assumption from the spec ledger confirmed (2026-07-03)
 
 ### Patterns
-- (none yet)
+- Migration runner: psql --single-transaction with -f <migration> followed by
+  -c "INSERT INTO schema_migrations..." commits the migration and its tracking
+  record atomically — a crash can never record an unapplied migration or apply an
+  unrecorded one
+- Local DB testing: pgvector/pgvector:pg17 container (port 54329, password test) —
+  see header of scripts/migrate.test.sh for the docker run command
 
 ### Gotchas
+- Use Neon's DIRECT endpoint (host without -pooler) for migrations/DDL; the pooled
+  endpoint goes through pgbouncer transaction pooling. Ovidiu's handed-over string
+  is the pooled one — strip -pooler for scripts/migrate.sh
+- psql is not preinstalled on this machine: brew install libpq (keg-only), then
+  export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 - Coverage tooling gap: `mcp-server` has a `test:coverage` script but `@vitest/coverage-v8`
   is not in devDependencies, so coverage cannot be measured yet. The 95% coverage gate is
   blocked until the dependency is added — fold this into the first migration feature.
@@ -49,4 +68,22 @@ This file is referenced in CLAUDE.md and loaded every session.
 <!-- Coordination insights that apply across features — NOT domain-specific.
      Populated by the retrospective step at session end.
      These transfer to new projects: harness-init can import them as starting context. -->
-- (none yet — first retrospective will populate this)
+- Check tool availability (psql, Docker daemon) before planning a TDD loop that
+  depends on them; the fix (brew install, start OrbStack) is cheap but must come
+  before the red phase, not mid-loop
+- When a feature has an external human dependency (provisioning, credentials),
+  build and test everything locally first — the dependency may resolve mid-session
+  and the acceptance run is then immediate
+
+## Meta-Session 2026-07-03
+- Scope accuracy: F001 stayed exactly in scope (db/migrations/, scripts/, docs/);
+  zero expansions. Deliverable count differed from the description (5 migration
+  files from 8 sources) but that is the port doing its job, not scope drift.
+- Model calibration: 0 correction cycles single-session; no upgrade signal.
+- Discovery lineage: nothing discovered that needs a new feature. The coverage
+  gotcha (bash not measurable by vitest) is recorded on F001 itself.
+- Approach patterns: TDD against a local pgvector container worked first pass;
+  acceptance re-ran unchanged against real Neon. The planned "pause for Ovidiu to
+  provision" never happened — he handed the connection string mid-session.
+- Plan approval: lightweight plan + Go-ahead before starting was enough for this
+  feature type (infra scripts with a verified spec); no rework.

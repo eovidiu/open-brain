@@ -14,3 +14,26 @@
 - issue-prep: Neon migration spec verified (source: plan doc / conversation; SV verdict
   ASK -> 8 questions answered -> RV PASS on cycle 1; not stamped - local-only mode,
   no prep config). F001-F009 written to features.json with spec hashes.
+
+## Session 2 - 2026-07-03
+- Feature: F001 - Neon schema migrations, psql runner, provisioning runbook
+- Status: complete (passing)
+- Tests: 50 vitest passing (untouched, no regressions) + scripts/migrate.test.sh
+  16/16 behavioral checks against local pgvector container
+- Coverage: not measurable on bash scripts (vitest v8 coverage does not apply);
+  documented on F001 in features.json. mcp-server coverage dep still missing
+  (folded into F002 per its spec).
+- Decisions: 8 source migrations -> 5 Neon migrations (RLS + pg_cron/
+  process_pending_memories dropped, 008 folded into 002); details in
+  context_summary.md
+- Neon is LIVE: Ovidiu handed the connection string mid-session (pooled endpoint,
+  project ep-curly-glade-ab0ouns8, aws-eu-west-2, PG 18). Acceptance ran against
+  the real DB: 5 applied / no-op exit 0 / assert-schema all OK. Connection string
+  is NOT in the repo; Ovidiu adds it to .env per docs/neon-provisioning-runbook.md.
+- Environment notes: psql via brew libpq (keg-only, needs PATH export); local test
+  Postgres = docker container openbrain-test-pg (pgvector/pg17, port 54329) - left
+  running, safe to remove (test script header has the recreate command)
+- Next: F002 (mcp-server DB layer on @neondatabase/serverless) or F003
+  (workers/shared/) - both unblocked; Phase 1 remains single-session per
+  harness.json
+- Blockers: none

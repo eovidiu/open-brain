@@ -2,13 +2,13 @@
   "project": "open-brain",
   "created": "2026-07-03",
   "total_features": 9,
-  "passing": 0,
+  "passing": 1,
   "features": [
     {
       "id": "F001",
       "description": "Neon schema migrations: port the 8 Supabase SQL migrations to db/migrations/ (drop pg_cron and RLS/anon/authenticated constructs; keep memories table with vector(1536) + HNSW index, system_config, and the three SQL functions), add a psql-based migration runner, and write the Neon provisioning runbook for Ovidiu. ACCEPTANCE: runner applies all migrations to an empty Neon database idempotently (second run is a no-op, exit 0); schema assertion script against a Neon branch confirms expected objects present and no pg_cron/RLS/anon/authenticated grants.",
       "priority": 1,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "db/migrations/",
         "scripts/",
@@ -16,12 +16,14 @@
       ],
       "depends_on": [],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "scripts/migrate.test.sh",
+      "coverage": "not measurable (bash scripts; vitest v8 coverage does not apply). Behavioral test covers both scripts end-to-end: 16 checks incl. idempotency, schema presence, dropped-construct absence, and both failure paths.",
+      "notes": "Acceptance verified against the real Neon database (ep-curly-glade-ab0ouns8, aws-eu-west-2, PG 18) on 2026-07-03: run 1 = 5 applied, run 2 = no-op exit 0, assert-schema.sh all 16 checks OK. 8 source migrations became 5: RLS (004) and pg_cron/process_pending_memories (005) dropped per AD-3/AD-7, 008 constraint folded into the new 002 (fresh start, identical end state).",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "TDD via bash behavioral test against a local pgvector/pg17 Docker container, then acceptance re-run against the provisioned Neon DB. psql runner records each migration in schema_migrations inside the same --single-transaction as the migration file. Worked first pass."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {
