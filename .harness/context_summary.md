@@ -4,27 +4,27 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- Phase 2 COMPLETE locally (2026-07-04): F004 + F005 + F006 passing on branch
-  phase2-workers (NOT pushed, NOT merged to main). Opus review PASS incl. the F1
-  fix (e89e965). origin/main's 31 remote v2.x commits merged into local main
-  first (f45486d) — mcp-server kept the local dependency set (Neon in,
-  supabase-js out; remote's openai/zod/vitest major bumps NOT taken).
-- F007 CLI rewrite COMPLETE (2026-07-04) on branch f007-cli-rewrite, not merged:
-  8-step Neon/Workers setup, cli vitest suite added (61 tests), supabase-js gone
-  from cli. init.sh full_test now runs BOTH workspace suites. The CLI's `openbrain
-  setup` steps 6-7 (migrations + wrangler deploy/secrets) now automate most of the
-  deployment-verification runbook.
-- DEPLOYMENT VERIFICATION PENDING (needs Ovidiu): wrangler login, then run the
-  new `openbrain setup` end-to-end (= F007 acceptance) which deploys the three
-  Workers and sets secrets; then the live acceptance clauses (201s against live
-  capture, cron retry run, real MCP client over Streamable HTTP with /auth/token
-  JWT — the one thing still mock-tested only).
-- Then: F008 cutover + Supabase decommission (needs Ovidiu: domain, Claude
-  Desktop reconfig; retires the live wildcard-CORS regression), F009 docs/spec
-  PR, F010 (service-copy consolidation, priority 6).
-- Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18;
-  Ovidiu holds the connection string (never in repo); test branch
-  br-morning-morning-ab8igqsz gates integration tests via NEON_TEST_DATABASE_URL.
+- MIGRATION COMPLETE (2026-07-04): F001-F009 all passing, all merged to main and
+  pushed. DEPLOYED AND LIVE: capture
+  https://open-brain-capture.eovidiu.workers.dev, retry cron (no public route),
+  MCP https://open-brain-mcp.eovidiu.workers.dev (/auth/token, /health,
+  Streamable HTTP). All live acceptance observed green (docs/cutover-runbook.md).
+  Claude Desktop stdio reconfigured against Neon. Supabase lxwtqegyhrfixnfctkne
+  PAUSED (rollback bound; permanent delete is a later one-click). Spec lives at
+  docs/open-brain-spec.md (v1.1.0, PR #80); ../open-brain-spec.md is a stale
+  duplicate.
+- OPERATIONAL NOTES: METADATA_LLM_PROVIDER=openai everywhere — the Anthropic
+  account has NO API credits (calls fail on billing); flip back per Worker after
+  funding. Retry worker needs the OPENAI_METADATA_API_KEY secret (its
+  selectCaller never falls back to OPENAI_API_KEY — divergence tracked in F010).
+  .env is STALE (still SUPABASE_* keys, no DATABASE_URL) — never modified per
+  the no-.env-edits rule; `openbrain setup` regenerates it.
+- Remaining backlog: F010 (consolidate duplicated services into workers/shared,
+  unify metadata validation + key fallback), BI-001 (delete capability), custom
+  domain for capture (workers.dev interim), permanent Supabase delete.
+- Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
+  branch production (5 migrations); test branch br-morning-morning-ab8igqsz
+  gates integration tests via NEON_TEST_DATABASE_URL.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -145,7 +145,26 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Ports must be faithful by default; any added validation/behavior is a defect
   unless it implements a named carry-forward or approved deviation
 
-## Meta-Session 2026-07-04b (F007, single-session)
+## Meta-Session 2026-07-04c (F008+F009, autonomous deployment under blanket go-ahead)
+- Scope vs plan: full deployment executed without user interaction except one
+  unavoidable OAuth click (wrangler login — no non-interactive credential path
+  existed anywhere on the machine). Secrets flowed shell-side (grep/cut piped
+  straight into wrangler) so values never entered the transcript; the one
+  exception was the Neon connection string, obtainable only via the Neon MCP.
+- Unanticipated (both found ONLY by live testing, invisible to every prior
+  test layer): (1) the Anthropic account has no API credits — key valid,
+  billing fails; unit tests, dry-runs, and review could never catch an account
+  state; (2) retry's metadata key selection never falls back to
+  OPENAI_API_KEY, unlike the mcp copy — the F3/F010 duplication-divergence
+  materialized as a production incident within hours of the review predicting
+  that class of bug.
+- Transferable: (a) live acceptance must include one full pass through every
+  EXTERNAL account dependency (billing state, quota), not just code paths;
+  (b) when a fix changes a Worker secret/var, recompute the retry backoff
+  before judging "still broken" — counters incremented by the OLD config push
+  eligibility minutes into the future, and a watcher timing out is not a
+  failure signal; (c) an editorial mega-edit (1300-line spec) delegates
+  cleanly to a context-inheriting fork while the lead keeps deploying.
 - Scope vs plan: stayed in cli/ + cli/package.json as declared, plus the
   disclosed init.sh test-gate addition. One plan correction made DURING code
   reading, before any edit: the plan said "delete secrets.ts (superseded by

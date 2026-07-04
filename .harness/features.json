@@ -228,7 +228,7 @@
       "id": "F008",
       "description": "Cutover + decommission: fresh Neon data (Supabase data explicitly not preserved, decided 2026-07-03), reconfigure Claude Desktop stdio env, point webhook callers at the capture Worker custom domain (workers.dev interim fallback), verify end-to-end, decommission Supabase project lxwtqegyhrfixnfctkne. Downtime unconstrained. ACCEPTANCE: runbook executed \u2014 Claude Desktop stdio works against Neon; capture Worker reachable on its domain; retry cron observed processing; Supabase decommissioned only after all other criteria observed green (rollback bound).",
       "priority": 4,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "docs/"
       ],
@@ -241,12 +241,14 @@
         "F006"
       ],
       "assigned_to": null,
-      "test_file": null,
+      "test_file": "live acceptance (docs/cutover-runbook.md); no unit tests \u2014 operational feature",
       "coverage": null,
-      "notes": null,
+      "notes": "Supabase lxwtqegyhrfixnfctkne PAUSED not deleted \u2014 rollback bound per acceptance; permanent delete is a later one-click. Custom domain not configured; workers.dev interim per spec.",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "Executed autonomously under blanket go-ahead: wrangler OAuth (one browser click), 3 Workers deployed + secrets shell-piped from .env (values never in transcript), live acceptance (capture 201 JWT + sha256=HMAC, 401/400/replay, MCP initialize/tools-list/all-4-tools over Streamable HTTP, stdio handshake vs Neon), Claude Desktop reconfigured, retry cron observed repairing seeded pending+degraded rows, Supabase project paused (rollback-bound) only after all green. Two live bugs found+fixed: Anthropic account has NO API credits (provider switched to openai fleet-wide), retry selectCaller never falls back to OPENAI_API_KEY for metadata (operational fix: OPENAI_METADATA_API_KEY secret set on retry; code divergence folds into F010)."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {
@@ -261,7 +263,7 @@
       "id": "F009",
       "description": "Docs + spec amendment PR: amend open-brain-spec.md \u00a71.3 (drop 60-minute non-coder setup test; personal-use), \u00a75 Architecture and \u00a78 Deployment for the Neon + Cloudflare stack; update README; .env.example gains DATABASE_URL and the missing OPENAI_METADATA_API_KEY, loses all SUPABASE_* vars; replace docs/deploy-to-supabase.md. ACCEPTANCE: spec PR merged or approved by Ovidiu; .env.example matches the new stack with no SUPABASE_* vars; README quickstart matches the new stack.",
       "priority": 5,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "docs/",
         "README.md",
@@ -278,12 +280,14 @@
         "F008"
       ],
       "assigned_to": null,
-      "test_file": null,
+      "test_file": "PR #80 (merged 40d4b28); acceptance is editorial",
       "coverage": null,
-      "notes": null,
+      "notes": "../open-brain-spec.md (loose parent-dir file) is now a stale duplicate \u2014 superseded by docs/open-brain-spec.md; flagged to Ovidiu.",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "Spec brought INTO the repo (docs/open-brain-spec.md v1.1.0) making the Prime Rule real for the first time; amendment delegated to a context-inheriting fork (35 clusters, 91 stack mentions; ADR bodies preserved under amendment banners). Three spec-vs-reality corrections grounded in deployed schema: metadata_status failed terminal state, 9-type enum, capture 201."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {

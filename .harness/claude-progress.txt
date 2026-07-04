@@ -110,3 +110,24 @@
   (needs Ovidiu: domain, Claude Desktop reconfig, Supabase decommission);
   (4) F009 docs/spec PR
 - Blockers: F008/F009 blocked on deployment verification
+
+## Session 3 (final) - 2026-07-04 - F008 + F009, full deployment
+- Features: F008 cutover+decommission, F009 docs+spec PR — BOTH passing.
+  F001-F009 complete; migration DONE; system LIVE.
+- Deployed: open-brain-capture / open-brain-retry-worker / open-brain-mcp on
+  eovidiu.workers.dev; secrets set; METADATA_LLM_PROVIDER=openai (Anthropic
+  account unfunded); retry also has OPENAI_METADATA_API_KEY (selectCaller gap,
+  see F010)
+- Live acceptance: capture 201 JWT + sha256=HMAC / 401 unauth+replay / 400
+  invalid; MCP /health, /auth/token (401 wrong secret), initialize, tools/list,
+  all 4 tools invoked over Streamable HTTP; stdio handshake vs Neon; retry cron
+  observed repairing seeded pending+degraded rows (all 5 memories fully ready)
+- Cutover: Claude Desktop stdio -> Neon (config rewritten); Supabase
+  lxwtqegyhrfixnfctkne PAUSED after all criteria green (rollback bound)
+- Docs: PR #80 merged (40d4b28) — spec v1.1.0 in-repo, README, .env.example,
+  deploy.md, cutover-runbook.md
+- Tests: mcp-server 69, cli 61 green; live acceptance per cutover-runbook
+- Next: F010 consolidation (priority 6, includes retry key-fallback fix);
+  fund Anthropic + flip provider if desired; custom domain; permanent
+  Supabase delete; regenerate .env via `openbrain setup` (stale SUPABASE_* keys)
+- Blockers: none. System operational.
