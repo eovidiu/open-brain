@@ -1,5 +1,6 @@
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import * as ui from '../ui.js';
+import { hasEnvVar } from '../env.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
 export const migrationsStep: SetupStep = {
@@ -7,50 +8,42 @@ export const migrationsStep: SetupStep = {
   number: 6,
 
   async isComplete(state: SetupState, _env: EnvFile): Promise<boolean> {
-    // Migrations are considered complete if the state file records them
-    // The actual check is done during run() via the Supabase CLI
     return state.completedSteps.includes(6);
   },
 
-  async run(state: SetupState, _env: EnvFile): Promise<StepResult> {
+  async run(state: SetupState, env: EnvFile): Promise<StepResult> {
+    if (!hasEnvVar(env, 'DATABASE_URL')) {
+      ui.error('DATABASE_URL is not set. Complete the Neon connection step first.');
+      return { status: 'failed', error: 'Missing DATABASE_URL', retriable: false };
+    }
+
     if (state.completedSteps.includes(6)) {
-      ui.info('Migrations previously applied.');
+      ui.info('Migrations previously applied (the runner is idempotent).');
       const rerun = await ui.confirm({ message: 'Re-run migrations?', initialValue: false });
       if (ui.isCancel(rerun)) return { status: 'skipped', reason: 'Cancelled' };
       if (!rerun) return { status: 'skipped', reason: 'Already applied' };
     }
 
-    // Check for supabase CLI
-    if (!isSupabaseCLIAvailable()) {
-      ui.error('Supabase CLI not found. Install it: https://supabase.com/docs/guides/cli');
-      ui.info('Migrations require the Supabase CLI. Steps 1-5 can run without it.');
-      return { status: 'failed', error: 'Supabase CLI not installed', retriable: false };
+    if (!isPsqlAvailable()) {
+      ui.error('psql not found. On macOS: brew install libpq, then add it to PATH:');
+      ui.info('  export PATH="/opt/homebrew/opt/libpq/bin:$PATH"');
+      return { status: 'failed', error: 'psql not installed', retriable: true };
     }
 
+    // Migrations/DDL must use Neon's direct endpoint; the pooled endpoint goes
+    // through pgbouncer transaction pooling, which breaks --single-transaction.
+    const directUrl = env.values['DATABASE_URL']!.replace('-pooler', '');
+
     const s = ui.spinner();
-
     try {
-      // Link the project (may already be linked)
-      s.start('Linking Supabase project...');
-      try {
-        execSync('npx supabase link', { stdio: 'pipe', timeout: 30000 });
-        s.stop('Supabase project linked');
-      } catch {
-        s.stop('Project may already be linked (continuing)');
-      }
-
-      // Push migrations
-      s.start('Applying database migrations...');
-      const output = execSync('npx supabase db push', {
+      s.start('Applying database migrations (scripts/migrate.sh)...');
+      const output = execFileSync('bash', ['scripts/migrate.sh'], {
+        env: { ...process.env, DATABASE_URL: directUrl },
         stdio: 'pipe',
-        timeout: 60000,
+        timeout: 120000,
       }).toString();
       s.stop('Database migrations applied');
-
-      if (output) {
-        ui.info(output.trim());
-      }
-
+      if (output.trim()) ui.info(output.trim());
       return { status: 'done' };
     } catch (err) {
       s.stop('Migration failed');
@@ -61,9 +54,9 @@ export const migrationsStep: SetupStep = {
   },
 };
 
-function isSupabaseCLIAvailable(): boolean {
+function isPsqlAvailable(): boolean {
   try {
-    execSync('npx supabase --version', { stdio: 'pipe', timeout: 10000 });
+    execSync('psql --version', { stdio: 'pipe', timeout: 10000 });
     return true;
   } catch {
     return false;

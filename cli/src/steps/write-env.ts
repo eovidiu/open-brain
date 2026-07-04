@@ -4,8 +4,7 @@ import { saveEnv } from '../env.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
 const REQUIRED_KEYS = [
-  'SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY',
+  'DATABASE_URL',
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
   'CAPTURE_WEBHOOK_SECRET',

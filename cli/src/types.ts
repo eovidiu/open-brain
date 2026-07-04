@@ -15,7 +15,7 @@ export interface SetupState {
   completedSteps: number[];
   lastRunAt: string;
   migrationsApplied: string[];
-  edgeFunctionsDeployed: string[];
+  workersDeployed: string[];
   claudeDesktopConfigured: boolean;
 }
 
