@@ -3,23 +3,23 @@ import { loadState, saveState, markStepComplete } from './state.js';
 import { loadEnv } from './env.js';
 import type { SetupStep } from './types.js';
 
-import { supabaseStep } from './steps/supabase.js';
+import { neonStep } from './steps/neon.js';
 import { openaiStep } from './steps/openai.js';
 import { anthropicStep } from './steps/anthropic.js';
 import { secretsStep } from './steps/secrets.js';
 import { writeEnvStep } from './steps/write-env.js';
 import { migrationsStep } from './steps/migrations.js';
-import { edgeFunctionsStep } from './steps/edge-functions.js';
+import { wranglerStep } from './steps/wrangler.js';
 import { claudeDesktopStep } from './steps/claude-desktop.js';
 
 const steps: SetupStep[] = [
-  supabaseStep,
+  neonStep,
   openaiStep,
   anthropicStep,
   secretsStep,
   writeEnvStep,
   migrationsStep,
-  edgeFunctionsStep,
+  wranglerStep,
   claudeDesktopStep,
 ];
 
@@ -78,10 +78,10 @@ export async function runSetup(): Promise<void> {
   if (!failed) {
     ui.outro(
       'Setup complete.\n\n' +
-      '  Start the MCP server:\n' +
-      '    npm run dev\n\n' +
-      '  Or in stdio mode (for Claude Desktop):\n' +
-      '    npx open-brain-mcp-server --stdio'
+      '  Check component health:\n' +
+      '    openbrain status\n\n' +
+      '  Claude Desktop uses the stdio MCP server directly;\n' +
+      '  remote MCP clients connect to the MCP Worker URL in .env.'
     );
   }
 }

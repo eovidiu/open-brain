@@ -12,7 +12,14 @@ export function loadState(): SetupState {
   const statePath = getStatePath();
   if (fs.existsSync(statePath)) {
     const raw = fs.readFileSync(statePath, 'utf-8');
-    return JSON.parse(raw) as SetupState;
+    const parsed = JSON.parse(raw) as Partial<SetupState>;
+    const empty = createEmptyState();
+    return {
+      ...empty,
+      ...parsed,
+      version: 2,
+      workersDeployed: parsed.workersDeployed ?? [],
+    };
   }
   return createEmptyState();
 }
@@ -30,11 +37,11 @@ export function markStepComplete(state: SetupState, stepNumber: number): void {
 
 function createEmptyState(): SetupState {
   return {
-    version: 1,
+    version: 2,
     completedSteps: [],
     lastRunAt: new Date().toISOString(),
     migrationsApplied: [],
-    edgeFunctionsDeployed: [],
+    workersDeployed: [],
     claudeDesktopConfigured: false,
   };
 }

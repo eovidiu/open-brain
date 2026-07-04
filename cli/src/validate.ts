@@ -1,20 +1,18 @@
-import { createClient } from '@supabase/supabase-js';
+import { neon } from '@neondatabase/serverless';
 
-export async function validateSupabase(url: string, key: string): Promise<{ ok: boolean; error?: string }> {
+export async function validateNeon(url: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const client = createClient(url, key);
-    const { error } = await client.from('_openbrain_health_check').select('*').limit(0);
-    // A 404 (relation does not exist) with service role still means the connection works.
-    // Only auth errors (401/403) indicate bad credentials.
-    if (error && error.code === 'PGRST301') {
-      // Unauthorized — bad key
-      return { ok: false, error: `Authentication failed: ${error.message}` };
-    }
-    // Any other error (including "relation does not exist") means we connected successfully.
+    const sql = neon(url);
+    await sql`SELECT 1`;
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: redactDatabaseUrl(message) };
   }
+}
+
+function redactDatabaseUrl(text: string): string {
+  return text.replace(/(postgres(?:ql)?:\/\/[^:/\s]+):[^@\s]+@/g, '$1:***REDACTED***@');
 }
 
 export async function validateOpenAIKey(key: string): Promise<{ ok: boolean; error?: string }> {

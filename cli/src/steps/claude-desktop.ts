@@ -30,18 +30,14 @@ export const claudeDesktopStep: SetupStep = {
     const projectRoot = path.resolve(process.cwd());
     const mpcServerPath = path.join(projectRoot, 'mcp-server', 'dist', 'index.js');
 
-    // Build the server entry
+    // Build the server entry (stdio transport needs the DB and LLM keys only)
     const serverEntry = {
       command: 'node',
       args: [mpcServerPath, '--stdio'],
       env: {
-        SUPABASE_URL: env.values['SUPABASE_URL'] ?? '',
-        SUPABASE_SERVICE_ROLE_KEY: env.values['SUPABASE_SERVICE_ROLE_KEY'] ?? '',
+        DATABASE_URL: env.values['DATABASE_URL'] ?? '',
         OPENAI_API_KEY: env.values['OPENAI_API_KEY'] ?? '',
         ANTHROPIC_API_KEY: env.values['ANTHROPIC_API_KEY'] ?? '',
-        CAPTURE_WEBHOOK_SECRET: env.values['CAPTURE_WEBHOOK_SECRET'] ?? '',
-        CAPTURE_JWT_SECRET: env.values['CAPTURE_JWT_SECRET'] ?? '',
-        MCP_CLIENT_SECRET: env.values['MCP_CLIENT_SECRET'] ?? '',
         EMBEDDING_MODEL: env.values['EMBEDDING_MODEL'] ?? 'text-embedding-3-small',
       },
     };
