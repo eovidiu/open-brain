@@ -36,14 +36,14 @@ export async function text(opts: {
   message: string;
   placeholder?: string;
   defaultValue?: string;
-  validate?: (value: string) => string | Error | undefined;
+  validate?: (value: string | undefined) => string | Error | undefined;
 }): Promise<string | symbol> {
   return p.text(opts);
 }
 
 export async function password(opts: {
   message: string;
-  validate?: (value: string) => string | Error | undefined;
+  validate?: (value: string | undefined) => string | Error | undefined;
 }): Promise<string | symbol> {
   return p.password(opts);
 }

@@ -1,23 +1,49 @@
 {
-  "name": "@eovidiu/open-brain-cli",
-  "version": "1.0.0-mvp",
-  "description": "Interactive CLI setup wizard for Open Brain",
+  "name": "@eovidiu/open-brain-setup",
+  "version": "2.1.5",
+  "description": "One-command setup for Open Brain — deploy your AI memory to Supabase",
   "type": "module",
   "bin": {
+    "open-brain-setup": "./dist/index.js",
     "openbrain": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eovidiu/open-brain.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/eovidiu/open-brain#readme",
+  "bugs": "https://github.com/eovidiu/open-brain/issues",
+  "author": "Ovidiu Eftimie",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "open-brain",
+    "ai-memory",
+    "supabase",
+    "knowledge-base",
+    "vector-search"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run bundle-assets",
+    "bundle-assets": "cp ../supabase/functions/open-brain-mcp/index.ts dist/edge-function.ts 2>/dev/null || true",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@clack/prompts": "^0.9.1",
-    "@supabase/supabase-js": "^2.49.4",
-    "dotenv": "^16.4.7"
+    "@clack/prompts": "^1.1.0",
+    "@supabase/supabase-js": "^2.99.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.14",
+    "@types/node": "^25.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

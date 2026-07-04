@@ -1,5 +1,5 @@
 -- Create the memories table
-CREATE TABLE memories (
+CREATE TABLE IF NOT EXISTS memories (
   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   raw_text              text        NOT NULL,
   embedding             vector(1536),
@@ -26,6 +26,7 @@ CREATE TABLE memories (
 );
 
 -- Embedding must be present iff status is 'ready'
+ALTER TABLE memories DROP CONSTRAINT IF EXISTS embedding_status_consistency;
 ALTER TABLE memories ADD CONSTRAINT embedding_status_consistency
   CHECK (
     (embedding_status = 'ready'  AND embedding IS NOT NULL) OR
@@ -33,15 +34,15 @@ ALTER TABLE memories ADD CONSTRAINT embedding_status_consistency
   );
 
 -- HNSW index for approximate nearest-neighbor search on embeddings
-CREATE INDEX memories_embedding_hnsw_idx
+CREATE INDEX IF NOT EXISTS memories_embedding_hnsw_idx
   ON memories
   USING hnsw (embedding vector_cosine_ops)
   WITH (m = 16, ef_construction = 64);
 
 -- Index for listing recent memories
-CREATE INDEX memories_captured_at_desc_idx
+CREATE INDEX IF NOT EXISTS memories_captured_at_desc_idx
   ON memories (captured_at DESC);
 
 -- Index for the retry worker to find pending/failed embeddings
-CREATE INDEX memories_embedding_status_idx
+CREATE INDEX IF NOT EXISTS memories_embedding_status_idx
   ON memories (embedding_status);
