@@ -16,8 +16,9 @@ compatibility_flags = ["nodejs_compat"]
 "ai" = "./src/stubs/ai-shim.ts"
 
 [vars]
-# Non-secret configuration. Matches mcp-server's default metadata provider.
-METADATA_LLM_PROVIDER = "anthropic"
+# Non-secret configuration. Metadata-extraction provider: "openai" or "anthropic"
+# (anthropic requires funded API credits on the Anthropic account).
+METADATA_LLM_PROVIDER = "openai"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # Secrets (set with `wrangler secret put <NAME>`, never committed):
