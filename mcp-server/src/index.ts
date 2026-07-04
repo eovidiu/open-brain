@@ -6,11 +6,9 @@ import { handleListRecent } from './tools/list-recent.js';
 import { handleGetStats } from './tools/get-stats.js';
 import { handleCaptureMemory, CaptureValidationError, DbWriteError } from './tools/capture-memory.js';
 import { startStdioTransport } from './transport/stdio.js';
-import { startSSETransport } from './transport/sse.js';
 import { createCaptureRateLimiter } from './auth/rate-limiter.js';
 
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
-const SSE_PORT = parseInt(process.env.MCP_SERVER_PORT || '3001', 10);
 const captureRateLimiter = createCaptureRateLimiter();
 
 async function validateSystemConfig(): Promise<void> {
@@ -140,19 +138,7 @@ async function main(): Promise<void> {
 
   const mcpServer = createServer();
 
-  // Determine transport mode
-  const isStdio = process.argv.includes('--stdio');
-  const isSSEOnly = process.argv.includes('--sse-only');
-
-  if (isStdio) {
-    await startStdioTransport(mcpServer.server);
-  } else if (isSSEOnly) {
-    await startSSETransport(mcpServer.server, SSE_PORT);
-  } else {
-    // Default: SSE transport (stdio requires exclusive access to stdin/stdout)
-    await startSSETransport(mcpServer.server, SSE_PORT);
-    console.error('[startup] Use --stdio flag for stdio transport mode');
-  }
+  await startStdioTransport(mcpServer.server);
 }
 
 main().catch((err) => {
