@@ -48,7 +48,7 @@
       ],
       "assigned_to": null,
       "test_file": "mcp-server/src/db/queries.test.ts, mcp-server/src/db/client.test.ts, mcp-server/src/db/round-trip.test.ts",
-      "coverage": "client.ts 100%, queries.ts 100% lines / 97.7% branch (>=95% gate met). Disclosed exception: transport/sse.ts at 0% — 3 lines touched as forced compile-fix (health endpoint used getSupabaseClient); file has no test harness and is deleted by F006 per AD-4.",
+      "coverage": "client.ts 100%, queries.ts 100% lines / 97.7% branch (>=95% gate met). Disclosed exception: transport/sse.ts at 0% \u2014 3 lines touched as forced compile-fix (health endpoint used getSupabaseClient); file has no test harness and is deleted by F006 per AD-4.",
       "notes": "Acceptance verified 2026-07-03: full suite 77/77 green incl. round-trip against Neon branch 'test' (br-morning-morning-ab8igqsz): capture -> search (similarity > 0.99) -> list_recent -> get_stats, plus AD-6 degradation path (embedding failure -> pending row, NULL embedding). supabase-js removed from mcp-server/package.json.",
       "correction_cycles": 0,
       "scope_expansions": [
@@ -81,7 +81,7 @@
       "assigned_to": null,
       "test_file": "workers/shared/src/index.test.ts, workers/shared/src/round-trip.test.ts",
       "coverage": "100% statements/branch/functions/lines on index.ts (types.ts is declaration-only, no runtime code).",
-      "notes": "Acceptance verified 2026-07-03: standalone build green (own package.json/tsconfig, not a root workspace — 'builds standalone' taken literally, zero root coupling); 17/17 tests incl. ::vector round-trip against Neon branch 'test' (1536-dim embedding inserted and read back identically). API takes the sql handle as a parameter (createDb(url)) because Workers get config from env bindings, not process.env. TDD slip: tests and implementation written in the same batch, red phase not observed for this feature.",
+      "notes": "Acceptance verified 2026-07-03: standalone build green (own package.json/tsconfig, not a root workspace \u2014 'builds standalone' taken literally, zero root coupling); 17/17 tests incl. ::vector round-trip against Neon branch 'test' (1536-dim embedding inserted and read back identically). API takes the sql handle as a parameter (createDb(url)) because Workers get config from env bindings, not process.env. TDD slip: tests and implementation written in the same batch, red phase not observed for this feature.",
       "correction_cycles": 0,
       "scope_expansions": [],
       "approaches_tried": [
@@ -101,7 +101,7 @@
       "id": "F004",
       "description": "Capture Worker: port supabase/functions/capture to a Cloudflare Worker fetch handler with JWT HS256 + HMAC auth preserved verbatim, Neon insert with explicit ::vector cast, and AD-6 degradation (on embedding/metadata failure the memory is stored with embedding_status 'pending'/'failed'). ACCEPTANCE: deployed Worker returns 201 with memory id for validly signed requests (JWT and HMAC paths both tested), 401 for invalid/missing auth, 400 for invalid payload; on forced embedding failure the row lands with embedding_status='pending'.",
       "priority": 2,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "workers/capture/"
       ],
@@ -109,12 +109,14 @@
         "F003"
       ],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "workers/capture/src/index.test.ts (+auth, rate-limit, embedding, metadata test files; 73 tests)",
+      "coverage": 100,
+      "notes": "Coverage 100% stmts/lines/fns, 97.97% branches. Deployment verification (deployed-Worker acceptance clause) deferred to Ovidiu per approved plan.",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "Single pass, 0 corrections. Web Crypto for JWT HS256 + HMAC (no nodejs_compat). Deviations per spec: 201 not source 200; no wildcard CORS. @cloudflare/workers-types must pin ^4.x (wrangler@4 peer dep ERESOLVEs on ^5.x). Local CaptureMetadata extends shared MemoryMetadata to add sentiment without touching workers/shared. Discovered live wildcard-CORS regression in supabase/functions/capture/index.ts (reintroduced by 83b19ec after 6b72bf6 fixed it) \u2014 Worker does not carry it forward."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {
@@ -129,7 +131,7 @@
       "id": "F005",
       "description": "Retry Worker: port supabase/functions/retry-worker to a Cloudflare Worker scheduled() handler on a '* * * * *' Cron Trigger, no public HTTP route; retry eligibility comes solely from the get_retry_eligible_memories() SQL function (the PostgREST .or() fallback is not ported, per AD-7). ACCEPTANCE: cron-triggered run processes a seeded pending memory to complete within one scheduled invocation; HTTP requests to the Worker return 404/405; overlapping runs do not double-process (status transitions + batch limit).",
       "priority": 2,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "workers/retry/"
       ],
@@ -137,12 +139,15 @@
         "F003"
       ],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "workers/retry/src/retry-batch.test.ts (+5 unit test files incl. metadata-service.test.ts 17 tests; +1 integration env-gated on NEON_TEST_DATABASE_URL)",
+      "coverage": 100,
+      "notes": "Review F2 accepted: no row locking on overlapping cron runs, matches source; worst case duplicate LLM spend, not corruption. Deployment verification (cron trigger live) deferred to Ovidiu.",
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "Faithful port of supabase/functions/retry-worker: scheduled() -> runRetryBatch via ctx.waitUntil; fetch() 404 unconditionally (no public route). Eligibility solely via workers/shared getRetryEligibleMemories (AD-7 \u2014 no PostgREST fallback ported). Terminal metadata_status=failed at 10 retries inherited from workers/shared atomic UPDATE...CASE (F003), not reimplemented. Per-record embedding+metadata retried in parallel like the Deno source. 39 unit tests green first pass, 100% coverage.",
+        "Review F1 fix (e89e965, TDD 5-red-first): validateMetadata aligned to capture semantics \u2014 9-type list, coerce-to-unknown (no throw), 50-item array caps, sentiment passthrough; non-object JSON still a retryable throw. Suite 44 passing, coverage held at 100%."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {
@@ -157,7 +162,7 @@
       "id": "F006",
       "description": "Remote MCP Worker: stateless Streamable HTTP via the Cloudflare Agents SDK createMcpHandler(), exposing the four existing tools (search_brain, list_recent, get_stats, capture_memory); JWT issuance endpoint (/auth/token) ported; Express SSE host (mcp-server/src/transport/sse.ts) removed. ACCEPTANCE: an MCP client connects over Streamable HTTP to the Worker URL with a JWT from /auth/token and successfully invokes all four tools; unauthenticated connection is rejected.",
       "priority": 3,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "workers/mcp/",
         "mcp-server/src/transport/"
@@ -167,12 +172,16 @@
         "F003"
       ],
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "workers/mcp/src/server.test.ts (+12 more test files; 89 tests)",
+      "coverage": 98.8,
+      "notes": "Coverage 98.8% stmts/lines (env.ts declaration-only at 0%, jwt.ts 91% on narrow catch branches). Protocol-level Streamable HTTP handshake still mock-tested only \u2014 real MCP client connect is the deployment verification step reserved for Ovidiu.",
       "correction_cycles": 0,
-      "scope_expansions": [],
-      "approaches_tried": [],
+      "scope_expansions": [
+        "mcp-server/src/index.ts + mcp-server/package.json: sse.ts deletion orphans the startSSETransport import and --sse-only branch; express dep dropped only if grep confirms unused (same expansion F002 disclosed)"
+      ],
+      "approaches_tried": [
+        "Plan-approved WebCrypto JWT (no nodejs_compat for own code) + jsonwebtoken cross-impl compatibility test. wrangler deploy --dry-run (disclosed deviation, no credentials) caught two bundling bugs unit tests could not: Agents SDK itself requires nodejs_compat (docs-confirmed), and its client-side `await import(\"ai\")` needs a wrangler [alias] no-op stub since only createMcpHandler is used. server.test.ts spies on McpServer.prototype.registerTool instead of SDK introspection. SSE host + orphaned auth/middleware.ts + auth/jwt.ts removed from mcp-server (69/71 suite unaffected)."
+      ],
       "failure_reason": null,
       "discovered_via": null,
       "spec": {
@@ -282,6 +291,33 @@
         "verified_at": "2026-07-03T15:52:41Z",
         "source": "conversation"
       }
+    },
+    {
+      "id": "F010",
+      "description": "Consolidate the embedding/metadata service copies and MCP db queries (duplicated across workers/capture, workers/retry, workers/mcp per the accepted Phase-2 structural duplication) into workers/shared, unifying metadata validation semantics (one VALID_TYPES list, coerce-to-unknown, array caps, sentiment passthrough) so the three-way divergence found in review (F1/F3, 2026-07-04) cannot recur. ACCEPTANCE: single implementation in workers/shared consumed by all three Workers; all Worker suites green; no behavior change at the HTTP/tool contract level.",
+      "priority": 6,
+      "status": "pending",
+      "scope": [
+        "workers/shared/",
+        "workers/capture/",
+        "workers/retry/",
+        "workers/mcp/"
+      ],
+      "depends_on": [
+        "F004",
+        "F005",
+        "F006"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F006",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": null,
+      "failure_reason": null,
+      "spec": null
     }
   ]
 }
