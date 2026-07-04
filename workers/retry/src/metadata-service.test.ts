@@ -94,12 +94,61 @@ describe('extractMetadata', () => {
     expect(inner).toHaveLength(24_000);
   });
 
-  it('rejects a response with an invalid type', async () => {
+  it('coerces an invalid type to unknown instead of throwing (does not burn a retry)', async () => {
     fetchMock.mockResolvedValue(anthropicResponse(JSON.stringify({ type: 'not-a-type' })));
 
-    await expect(extractMetadata('text', 'anthropic', 'key', null)).rejects.toThrow(
-      'invalid or missing type',
+    const metadata = await extractMetadata('text', 'anthropic', 'key', null);
+
+    expect(metadata.type).toBe('unknown');
+  });
+
+  it('coerces a missing type to unknown instead of throwing', async () => {
+    fetchMock.mockResolvedValue(anthropicResponse(JSON.stringify({ topics: [] })));
+
+    const metadata = await extractMetadata('text', 'anthropic', 'key', null);
+
+    expect(metadata.type).toBe('unknown');
+  });
+
+  it('accepts the two capture-only types (note, meeting_note)', async () => {
+    fetchMock.mockResolvedValue(anthropicResponse(JSON.stringify({ type: 'note' })));
+    expect((await extractMetadata('text', 'anthropic', 'key', null)).type).toBe('note');
+
+    fetchMock.mockResolvedValue(anthropicResponse(JSON.stringify({ type: 'meeting_note' })));
+    expect((await extractMetadata('text', 'anthropic', 'key', null)).type).toBe('meeting_note');
+  });
+
+  it('caps topics/people/action_items at 50 entries', async () => {
+    const fiftyFive = Array.from({ length: 55 }, (_, i) => `t${i}`);
+    fetchMock.mockResolvedValue(
+      anthropicResponse(JSON.stringify({ type: 'insight', topics: fiftyFive, people: fiftyFive, action_items: fiftyFive })),
     );
+
+    const metadata = await extractMetadata('text', 'anthropic', 'key', null);
+
+    expect(metadata.topics).toHaveLength(50);
+    expect(metadata.people).toHaveLength(50);
+    expect(metadata.action_items).toHaveLength(50);
+  });
+
+  it('passes a valid sentiment through', async () => {
+    fetchMock.mockResolvedValue(
+      anthropicResponse(JSON.stringify({ type: 'insight', sentiment: 'positive' })),
+    );
+
+    const metadata = await extractMetadata('text', 'anthropic', 'key', null);
+
+    expect(metadata.sentiment).toBe('positive');
+  });
+
+  it('drops an invalid sentiment rather than passing it through', async () => {
+    fetchMock.mockResolvedValue(
+      anthropicResponse(JSON.stringify({ type: 'insight', sentiment: 'ecstatic' })),
+    );
+
+    const metadata = await extractMetadata('text', 'anthropic', 'key', null);
+
+    expect(metadata.sentiment).toBeUndefined();
   });
 
   it('rejects a non-object response', async () => {

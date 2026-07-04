@@ -1,18 +1,24 @@
 import type { MemoryMetadata } from 'open-brain-workers-shared';
 import { redactError } from './redact-error.js';
 
+// workers/shared's MemoryMetadata has no sentiment field (it's optional
+// output from the extractor, not part of the storage contract); extend it
+// locally so validated metadata can still carry sentiment through to the row.
+export interface ExtractedMetadata extends MemoryMetadata {
+  sentiment?: string;
+}
+
 // Spec §5.3: truncate at 6,000 tokens (~24,000 chars at ~4 chars/token)
 const METADATA_TEXT_LIMIT = 24_000;
+const ARRAY_CAP = 50;
 
-const VALID_TYPES = [
-  'decision',
-  'insight',
-  'person_note',
-  'meeting_debrief',
-  'task',
-  'reference',
-  'unknown',
-];
+// Matches capture/src/metadata.ts's VALID_TYPES exactly: retry-path and
+// capture-path metadata must accept the same shape.
+const VALID_TYPES = new Set([
+  'decision', 'insight', 'person_note', 'meeting_debrief',
+  'task', 'reference', 'note', 'meeting_note', 'unknown',
+]);
+const VALID_SENTIMENTS = new Set(['positive', 'neutral', 'negative', 'mixed']);
 
 const METADATA_EXTRACTION_PROMPT = `You are a metadata extractor for a personal knowledge system.
 Your only task: analyze the USER_INPUT below and return a single valid JSON object
@@ -25,11 +31,12 @@ Rules:
 
 The JSON schema:
 {
-  "type": one of ["decision", "insight", "person_note", "meeting_debrief", "task", "reference", "unknown"],
+  "type": one of ["decision", "insight", "person_note", "meeting_debrief", "task", "reference", "note", "meeting_note", "unknown"],
   "topics": string[],
   "people": string[],
   "action_items": string[],
   "confidence": number between 0 and 1,
+  "sentiment": one of ["positive", "neutral", "negative", "mixed"],
   "truncated": boolean
 }`;
 
@@ -49,26 +56,34 @@ function buildUserMessage(rawText: string): { userMessage: string; truncated: bo
 }
 
 function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string').slice(0, ARRAY_CAP)
+    : [];
 }
 
-function validateMetadata(raw: unknown, truncated: boolean): MemoryMetadata {
+// Mirrors capture/src/metadata.ts's validateMetadata: an off-schema `type` or
+// `sentiment` is coerced/dropped, never a retryable failure. Only a
+// non-object response (raw text the LLM didn't even shape as JSON) throws,
+// so process-record.ts's retry counter tracks genuine extraction failures,
+// not shape drift.
+function validateMetadata(raw: unknown, truncated: boolean): ExtractedMetadata {
   if (!raw || typeof raw !== 'object') {
     throw new Error('metadata response was not a JSON object');
   }
   const obj = raw as Record<string, unknown>;
-  if (typeof obj.type !== 'string' || !VALID_TYPES.includes(obj.type)) {
-    throw new Error('metadata response had an invalid or missing type');
-  }
+  const type = typeof obj.type === 'string' && VALID_TYPES.has(obj.type) ? obj.type : 'unknown';
+  const sentiment = VALID_SENTIMENTS.has(obj.sentiment as string) ? (obj.sentiment as string) : undefined;
 
-  return {
-    type: obj.type,
+  const metadata: ExtractedMetadata = {
+    type,
     topics: toStringArray(obj.topics),
     people: toStringArray(obj.people),
     action_items: toStringArray(obj.action_items),
     confidence: typeof obj.confidence === 'number' ? Math.max(0, Math.min(1, obj.confidence)) : 0,
     truncated,
   };
+  if (sentiment) metadata.sentiment = sentiment;
+  return metadata;
 }
 
 async function callAnthropic(userMessage: string, apiKey: string): Promise<unknown> {
@@ -144,7 +159,7 @@ export async function extractMetadata(
   provider: string,
   anthropicKey: string | null,
   openaiMetadataKey: string | null,
-): Promise<MemoryMetadata> {
+): Promise<ExtractedMetadata> {
   const { userMessage, truncated } = buildUserMessage(rawText);
   const call = selectCaller(provider, anthropicKey, openaiMetadataKey);
   const raw = await call(userMessage);
