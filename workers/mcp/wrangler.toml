@@ -1,0 +1,29 @@
+name = "open-brain-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-07-04"
+# Required by the Cloudflare Agents SDK itself (confirmed via
+# developers.cloudflare.com/agents/runtime/operations/configuration and a
+# local `wrangler deploy --dry-run` bundle check, which failed on
+# node:os/node:async_hooks/node:path without this flag) — not something our
+# own code needs (the JWT auth in this Worker is plain Web Crypto).
+compatibility_flags = ["nodejs_compat"]
+
+[alias]
+# The Agents SDK's bundle dynamically imports "ai" (Vercel AI SDK) for
+# chat/tool-calling agent features this Worker doesn't use (only
+# createMcpHandler() is called). esbuild still resolves it statically, so
+# it's aliased to a no-op stub; see src/stubs/ai-shim.ts.
+"ai" = "./src/stubs/ai-shim.ts"
+
+[vars]
+# Non-secret configuration. Matches mcp-server's default metadata provider.
+METADATA_LLM_PROVIDER = "anthropic"
+EMBEDDING_MODEL = "text-embedding-3-small"
+
+# Secrets (set with `wrangler secret put <NAME>`, never committed):
+#   DATABASE_URL              Neon connection string (direct endpoint)
+#   MCP_CLIENT_SECRET         shared secret checked by POST /auth/token
+#   CAPTURE_JWT_SECRET        HS256 signing secret for the issued Bearer JWT
+#   OPENAI_API_KEY            embeddings (text-embedding-3-small) + optional metadata
+#   OPENAI_METADATA_API_KEY   optional override of OPENAI_API_KEY for metadata calls
+#   ANTHROPIC_API_KEY         required when METADATA_LLM_PROVIDER = "anthropic"
