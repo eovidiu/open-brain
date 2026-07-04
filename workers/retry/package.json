@@ -1,0 +1,24 @@
+{
+  "name": "open-brain-workers-retry",
+  "version": "1.0.0-mvp",
+  "description": "Cloudflare Worker: cron-triggered retry pass for embedding/metadata processing",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "open-brain-workers-shared": "file:../shared"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250709.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "3.2.4"
+  },
+  "author": "Ovidiu Eftimie",
+  "license": "MIT"
+}

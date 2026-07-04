@@ -1,0 +1,15 @@
+name = "open-brain-retry-worker"
+main = "src/index.ts"
+compatibility_date = "2026-07-03"
+
+# No routes/HTTP triggers: this Worker is cron-only. fetch() rejects all requests.
+
+[triggers]
+crons = ["* * * * *"]
+
+# Secrets (set via `wrangler secret put <NAME>`, never committed):
+#   DATABASE_URL            - Neon Postgres connection string
+#   OPENAI_API_KEY           - embedding generation
+#   ANTHROPIC_API_KEY        - metadata extraction (provider "anthropic")
+#   OPENAI_METADATA_API_KEY  - metadata extraction (provider "openai")
+#   METADATA_LLM_PROVIDER    - "anthropic" (default) or "openai"
