@@ -8,134 +8,83 @@ This project is an implementation of a concept articulated by [Nate B Jones](htt
 
 ## What it does
 
-Open Brain gives your AI tools a shared memory. Instead of re-explaining context every time you switch between Claude, ChatGPT, Cursor, or any MCP-compatible client, you capture thoughts once and search them from anywhere. Everything is stored in your own Supabase database with vector embeddings for semantic search.
+Open Brain gives your AI tools a shared memory. Instead of re-explaining context every time you switch between Claude, ChatGPT, Cursor, or any MCP-compatible client, you capture thoughts once and search them from anywhere. Everything is stored in your own Neon Postgres database with vector embeddings for semantic search, served by Cloudflare Workers — both on free tiers.
 
 ## Architecture
 
 ```
-Claude Desktop / Cursor / Claude Code / Any MCP Client
-                    |
-              HTTPS (Bearer token)
-                    |
-         Supabase Edge Function (open-brain-mcp)
-              /           \
-        OpenAI              Anthropic / OpenAI
-      (embeddings)        (metadata extraction)
-              \           /
-         PostgreSQL + pgvector
+Claude Desktop (stdio)        Any MCP Client (Streamable HTTP)
+        |                                 |
+  mcp-server (local)              MCP Worker (Cloudflare)
+        |                                 |
+        |          Webhooks --> Capture Worker (JWT/HMAC auth)
+        |                                 |
+        |          Cron (1/min) --> Retry Worker
+        |                                 |
+        +---------- Neon Postgres + pgvector ----------+
+                       |            |
+                    OpenAI      Anthropic/OpenAI
+                 (embeddings)  (metadata extraction)
 ```
 
----
+- **Capture Worker** — HTTP endpoint for saving thoughts (JWT HS256 or HMAC-signed webhooks)
+- **Retry Worker** — cron-driven; finishes embedding/metadata for degraded captures
+- **MCP Worker** — remote MCP server over Streamable HTTP with JWT auth (`/auth/token`)
+- **mcp-server** — local stdio MCP server for Claude Desktop (same four tools)
 
-## Setup (3 steps, ~2 minutes)
+## Setup
 
-No coding. No cloning. No terminal wizardry.
+Personal-use scope: you run this from a clone of the repo.
 
 ### Prerequisites
 
-You need two accounts (both have free tiers):
+| Requirement | What it's for |
+|-------------|---------------|
+| [Neon](https://neon.tech) account | Postgres + pgvector (free tier) |
+| [Cloudflare](https://cloudflare.com) account | Workers hosting (free tier) |
+| [OpenAI](https://platform.openai.com) API key | Embeddings |
+| [Anthropic](https://console.anthropic.com) API key (optional) | Metadata extraction |
+| Node.js 18+ | CLI and MCP server |
+| `psql` (`brew install libpq`) | Migration runner |
 
-| Account | What it's for | Sign up |
-|---------|---------------|---------|
-| **Supabase** | Hosts your database and MCP server | [supabase.com](https://supabase.com) |
-| **OpenAI** | Generates search embeddings | [platform.openai.com](https://platform.openai.com) |
-
-You also need **Node.js 18+** installed. Check with `node --version`. If you don't have it, download it from [nodejs.org](https://nodejs.org). The setup wizard handles everything else automatically via `npx`.
-
-### Step 1: Create a Supabase project
-
-1. Go to [supabase.com](https://supabase.com) and sign in (or create an account).
-2. Click **New Project**.
-3. Pick a name (e.g. `open-brain`) and a region close to you.
-4. Set a database password (save it somewhere — you won't need it for setup, but it's good to have).
-5. Wait ~1 minute for the project to finish provisioning.
-6. Go to **Project Settings → API** (left sidebar → the gear icon → API).
-7. Copy two values:
-   - **Project URL** — looks like `https://xyzabc.supabase.co`
-   - **Service role key** — the long one under "service_role" (starts with `eyJ...`)
-8. Go to [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens) and create a **personal access token**. Copy it — you'll need it during setup.
-
-> **Important:** The service role key and access token have full access. Keep them private. Never share them or commit them to a repo.
-
-### Step 2: Get an OpenAI API key
-
-1. Go to [platform.openai.com/api-keys](https://platform.openai.com/api-keys) and sign in.
-2. Click **Create new secret key**.
-3. Copy the key (starts with `sk-...`). You'll paste it in the next step.
-
-> **Optional:** If you also have an [Anthropic API key](https://console.anthropic.com/), the setup will ask if you want to use it for better metadata extraction. This is not required — OpenAI works fine for this too.
-
-### Step 3: Run the setup command
-
-Open a terminal and run:
+### Steps
 
 ```bash
-npx @eovidiu/open-brain-setup
+git clone https://github.com/eovidiu/open-brain.git && cd open-brain
+npm ci
+npx wrangler login          # one-time Cloudflare auth
+npm run dev --workspace=cli # runs `openbrain setup`
 ```
 
-The wizard will:
-1. Ask you to paste your **Supabase URL** and **service role key** (from Step 1).
-2. Ask you to paste your **Supabase access token** (from Step 1).
-3. Ask you to paste your **OpenAI API key** (from Step 2).
-4. Optionally ask for an **Anthropic API key**.
-5. Automatically: create your database tables, generate a secure MCP secret, deploy the MCP server, and set all secrets.
-6. Print ready-to-paste **MCP config blocks** for your AI client.
+The setup wizard walks through eight steps: Neon connection string (validated live), OpenAI/Anthropic keys, secret generation, `.env` write, database migrations, Worker deploys (with secrets), and Claude Desktop configuration. Re-running is safe — completed steps are skipped.
 
-**Save the secret** the wizard prints — you'll need it if you reconfigure later.
+Check health anytime:
 
-### Step 4: Connect your AI assistant
-
-The wizard prints two config blocks. Use the one that matches your client:
-
-#### Claude Desktop / Cursor / Windsurf
-
-These clients use stdio transport. Paste this into your config file (the wizard prints it with your actual URL and secret filled in):
-
-```json
-{
-  "mcpServers": {
-    "open-brain": {
-      "command": "npx",
-      "args": [
-        "mcp-remote@latest",
-        "https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp",
-        "--header",
-        "Authorization: Bearer YOUR_SECRET_HERE"
-      ]
-    }
-  }
-}
+```bash
+npm run dev --workspace=cli status
 ```
 
-| Client | Where to paste |
-|--------|---------------|
-| **Claude Desktop** | Settings → Developer → Edit Config |
-| **Cursor** | Settings → MCP Servers → Add |
-| **Windsurf** | Settings → MCP → Add Server |
+### Connect your AI assistant
 
-#### Claude Code
+**Claude Desktop** — the setup wizard configures this automatically (stdio, local `mcp-server`).
 
-Claude Code supports HTTP transport natively. Add to `~/.claude.json` or `.mcp.json` in your project root:
+**Claude Code / any Streamable HTTP MCP client** — get a token from the MCP Worker, then point the client at it:
 
 ```json
 {
   "mcpServers": {
     "open-brain": {
       "type": "http",
-      "url": "https://YOUR_PROJECT.supabase.co/functions/v1/open-brain-mcp",
+      "url": "https://open-brain-mcp.YOUR_SUBDOMAIN.workers.dev/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_SECRET_HERE"
+        "Authorization": "Bearer YOUR_JWT"
       }
     }
   }
 }
 ```
 
-Restart the client after pasting. You should see the Open Brain tools available.
-
-**That's it.** Try asking your AI: *"Search my brain for meeting notes"* or *"Remember that I decided to use PostgreSQL for the new project"*.
-
----
+Tokens come from `POST /auth/token` with `{"client_secret": "<MCP_CLIENT_SECRET from .env>"}` and expire after an hour.
 
 ## What can it do?
 
@@ -150,31 +99,28 @@ Once connected, your AI assistant gets four tools:
 
 Memories are automatically categorized into types: `decision`, `insight`, `person_note`, `meeting_debrief`, `task`, `reference`, `note`, `meeting_note`.
 
----
-
 ## Troubleshooting
 
-**"Supabase CLI not found"** — The setup uses `npx supabase` which downloads the CLI automatically. If it still fails, install manually with `npm install -g supabase` or `brew install supabase/tap/supabase`, then re-run the setup.
+**"psql not found"** — `brew install libpq`, then `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`.
 
-**"Connection failed"** — Double-check your Supabase URL (should be `https://something.supabase.co`) and your service role key (not the anon key — it's the longer one).
+**"wrangler is not authenticated"** — run `npx wrangler login` and re-run setup; it resumes at the deploy step.
 
-**"OpenAI key invalid"** — Make sure you copied the full key. Check your OpenAI billing — free trial keys sometimes expire.
+**Migrations fail on the pooled endpoint** — the runner strips `-pooler` automatically; if running `scripts/migrate.sh` by hand, pass the direct connection string.
 
-**Tools not showing up** — Restart your AI client after adding the config. Make sure the JSON is valid (no trailing commas).
+**Tools not showing up** — restart your AI client after adding the config, and check the JSON for trailing commas.
 
-**Need to reconfigure?** — Run `npx @eovidiu/open-brain-setup` again. It will overwrite the previous deployment.
+## Docs
 
----
-
-## Advanced
-
-For detailed information about the database schema, edge functions, and manual deployment options, see [docs/deploy-to-supabase.md](docs/deploy-to-supabase.md).
+- [docs/deploy.md](docs/deploy.md) — deployment reference (Workers, secrets, migrations)
+- [docs/open-brain-spec.md](docs/open-brain-spec.md) — system specification (authoritative; amended via PR only)
+- [docs/neon-provisioning-runbook.md](docs/neon-provisioning-runbook.md) — Neon project provisioning
+- [docs/cutover-runbook.md](docs/cutover-runbook.md) — Supabase → Neon cutover record
 
 ## Tech Stack
 
-- **TypeScript** — MCP server and Edge Functions
-- **Supabase** — PostgreSQL hosting, Edge Functions, pg_cron
-- **pgvector** — vector similarity search (HNSW index, 1536 dimensions)
+- **TypeScript** — Workers, MCP server, CLI (Node.js ESM)
+- **Neon** — serverless Postgres with pgvector (HNSW index, 1536 dimensions)
+- **Cloudflare Workers** — capture endpoint, retry cron, remote MCP (Streamable HTTP via the Agents SDK)
 - **OpenAI** — `text-embedding-3-small` for embeddings
 - **Anthropic / OpenAI** — metadata extraction (type, topics, people, action items)
 - **MCP SDK** — `@modelcontextprotocol/sdk` for tool registration and transport

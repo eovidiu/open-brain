@@ -3,8 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2026-07-04"
 
 [vars]
-# Non-secret configuration. "openai" matches the historical edge-function default;
-# set to "anthropic" to switch the metadata-extraction provider.
+# Non-secret configuration. Metadata-extraction provider: "openai" or "anthropic"
+# (anthropic requires funded API credits on the Anthropic account).
 METADATA_LLM_PROVIDER = "openai"
 
 # Secrets (set with `wrangler secret put <NAME>`, never committed):
