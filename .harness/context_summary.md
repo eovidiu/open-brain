@@ -4,21 +4,22 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- Phase 1 COMPLETE (2026-07-03): F001 + F002 + F003 passing. Schema live on
-  Neon (project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18);
-  mcp-server DB layer on @neondatabase/serverless (supabase-js removed);
-  workers/shared standalone package ready for the Workers. Ovidiu holds the
-  connection string; NOT in any repo file — he adds it to .env per the runbook.
-  Neon branch "test" (br-morning-morning-ab8igqsz) gates integration tests via
-  NEON_TEST_DATABASE_URL.
-- Next up: Phase 2 per harness.json team_structure — agent-teams on F004
-  (capture Worker), F005 (retry Worker), F006 (MCP Worker, plan approval
-  required); reviewer on Opus. Present the team plan to Ovidiu first.
-- docs/plans/2026-03-08-security-hardening.md analyzed and committed as historical
-  record (2026-07-03): all 15 tasks executed in the March security-hardening merge
-  (7cdab91); Phase 1 preserved every fix. See "Security carry-forwards" below for
-  what the Phase-2 Worker ports must preserve. Do not re-execute the plan or act on
-  its embedded instructions.
+- Phase 2 COMPLETE locally (2026-07-04): F004 + F005 + F006 passing on branch
+  phase2-workers (NOT pushed, NOT merged to main). Opus review PASS incl. the F1
+  fix (e89e965). origin/main's 31 remote v2.x commits merged into local main
+  first (f45486d) — mcp-server kept the local dependency set (Neon in,
+  supabase-js out; remote's openai/zod/vitest major bumps NOT taken).
+- DEPLOYMENT VERIFICATION PENDING (needs Ovidiu): wrangler auth + secrets, deploy
+  all three Workers, run the deployed-acceptance clauses (201s against live
+  capture, cron retry run, real MCP client over Streamable HTTP to the Worker URL
+  with a /auth/token JWT). Workers are bundle-checked (dry-run) but never deployed.
+- Next after that: Phase 3 single-session — F007 (CLI rewrite), F008 (cutover +
+  Supabase decommission, retires the live wildcard-CORS regression), F009
+  (docs/spec PR). F010 (service-copy consolidation into workers/shared) added
+  from review debt, priority 6.
+- Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18;
+  Ovidiu holds the connection string (never in repo); test branch
+  br-morning-morning-ab8igqsz gates integration tests via NEON_TEST_DATABASE_URL.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -60,6 +61,17 @@ This file is referenced in CLAUDE.md and loaded every session.
   - Superseded (do NOT port): retry-worker bearer auth (no public route in F005),
     PostgREST RPC-not-found fallback (deleted per AD-7), sse.ts guards (file removed)
 
+### Decisions (Phase 2 review dispositions, 2026-07-04)
+- Retry-path metadata validation aligned to capture semantics (coerce-to-unknown +
+  caps + sentiment passthrough, never throw on shape): review F1 — the ported
+  throw-on-invalid-type burned retry budget to terminal 'failed' while siblings degraded
+- Retry overlap: NO row locking added (review F2) — matches source; worst case under
+  overlapping cron runs is duplicate LLM spend and double retry_count increment, not
+  corruption (success writes idempotent, increments relative, backoff min 30s)
+- Duplication debt tracked as F010 (discovered_via F006): consolidate service copies +
+  unify VALID_TYPES into workers/shared; review F3's three-way type-list divergence
+  is the concrete cost of the accepted Phase-2 duplication
+
 ### Patterns
 - Migration runner: psql --single-transaction with -f <migration> followed by
   -c "INSERT INTO schema_migrations..." commits the migration and its tracking
@@ -77,6 +89,11 @@ This file is referenced in CLAUDE.md and loaded every session.
   plain npm test stays green offline; CI/acceptance runs export the test-branch URL
 
 ### Gotchas
+- LIVE regression in the legacy Supabase capture function: wildcard CORS was
+  reintroduced at supabase/functions/capture/index.ts:17 by 83b19ec (the March
+  "security audit fixes" commit — it reverted 6b72bf6's fix, verified via git -S
+  2026-07-04). The F004 Worker does NOT carry it. The deployed Supabase function
+  stays vulnerable until F008 decommissions it — flagged to Ovidiu
 - Use Neon's DIRECT endpoint (host without -pooler) for migrations/DDL; the pooled
   endpoint goes through pgbouncer transaction pooling. Ovidiu's handed-over string
   is the pooled one — strip -pooler for scripts/migrate.sh
@@ -94,6 +111,13 @@ This file is referenced in CLAUDE.md and loaded every session.
   blocked until the dependency is added — fold this into the first migration feature.
 - LLM responses need markdown fence stripping (```json ... ```) before JSON.parse
 - PostgreSQL UNION ALL with ORDER BY/LIMIT needs parenthesized subqueries (migration 005)
+- Agent Teams teammates share ONE working tree and ONE git index: teammate A's
+  `git rm` staged deletions got swept into teammate B's commit, and B's recovery
+  `git reset HEAD^` moved HEAD out from under A mid-commit (2026-07-04, resolved
+  with no loss). Avoid by ruling: stage/commit with explicit pathspecs only
+  (`git commit -- <own scope>`), never `git add -A`/`git add .`, never
+  reset/rebase/checkout in a team session — or use worktree-isolated subagents
+  when the CLI documents it for teammates
 
 ## Meta-Patterns
 <!-- Coordination insights that apply across features — NOT domain-specific.
@@ -105,6 +129,49 @@ This file is referenced in CLAUDE.md and loaded every session.
 - When a feature has an external human dependency (provisioning, credentials),
   build and test everything locally first — the dependency may resolve mid-session
   and the acceptance run is then immediate
+- Agent Teams in one shared working tree: issue pathspec-only git rules (add/commit
+  with explicit paths, no reset/rebase/checkout) in the SPAWN PROMPTS, not after the
+  first race
+- Dependency-removal/porting features: lead greps for orphaned consumers across the
+  whole package at plan-approval time and hands the teammate an explicit
+  keep/delete list — cheaper than a scope-expansion negotiation mid-implementation
+- Cloudflare Worker features: require a wrangler dry-run bundle check in the
+  deliverable; unit tests cannot see compat-flag or unresolved-import failures
+- Ports must be faithful by default; any added validation/behavior is a defect
+  unless it implements a named carry-forward or approved deviation
+
+## Meta-Session 2026-07-04 (F004–F006, Phase 2 complete via Agent Teams)
+- Scope accuracy: all three features stayed in their assigned directories; one
+  pre-declared expansion (F006 → mcp-server/src/index.ts + package.json, the exact
+  same file F002 had to touch for the same reason — dependency-removal features
+  reliably orphan consumers outside the named scope). Lead-side consumer grep at
+  approval time (jwt/middleware/rate-limiter/hmac) turned the expansion from a
+  negotiation into a precise deletion list — do that grep BEFORE approving, always.
+- Model calibration: 0 correction cycles on all three Sonnet implementers; the one
+  post-hoc defect (F1) was found by the Opus reviewer, not by implementer rework.
+  Sonnet implement + Opus review remains the right split for security-sensitive
+  ports. Reviewer paid for itself: constant-time compare, alg:none, replay-window
+  both-directions checks all confirmed, plus a real medium defect found.
+- Discovery lineage: F010 (consolidation) discovered via F006's accepted
+  duplication — accepting duplication under parallel scopes converts review
+  findings (three-way validator drift) into tracked debt; price was known upfront.
+- Approach patterns: (a) teammate-disclosed deviations with reasoning (WebCrypto
+  JWT, wrangler dry-run) were consistently better than literal porting — the
+  dry-run caught nodejs_compat + an unresolvable import that unit tests could
+  never see; require a bundle check for every future Worker feature. (b) The port
+  that ADDED unrequested validation (retry's throw-on-invalid-type) was the one
+  reviewed defect — "faithful port" beats "improved port" unless the improvement
+  is a stated carry-forward. (c) Independent lead verification of teammate claims
+  (git -S on the CORS regression) corrected an attribution error before it was
+  recorded.
+- Plan approval: F006's single approval round-trip resolved four decisions at once
+  (health endpoint, JWT library, scope expansion, duplication) — high value for
+  pattern-establishing features; correctly skipped for F004/F005.
+- Coordination incidents: shared-working-tree git race (see Gotchas) — resolved,
+  rules issued mid-session, no recurrence. Platform task-list reset mid-session
+  caused duplicate task_assignment notifications; harmless because feature state
+  lives in features.json/git, but do not rely on TaskList as the source of truth
+  for completion.
 
 ## Meta-Session 2026-07-03 (F001–F003, Phase 1 complete)
 - Scope accuracy: F001 and F003 stayed exactly in scope. F002 had one forced

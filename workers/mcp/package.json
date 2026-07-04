@@ -1,0 +1,32 @@
+{
+  "name": "open-brain-workers-mcp",
+  "version": "1.0.0-mvp",
+  "description": "Cloudflare Worker remote MCP host for Open Brain (stateless Streamable HTTP)",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "agents": "^0.2.13",
+    "@modelcontextprotocol/sdk": "1.23.0",
+    "open-brain-workers-shared": "file:../shared",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260701.1",
+    "jsonwebtoken": "^9.0.2",
+    "@types/jsonwebtoken": "^9.0.9",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "3.2.4",
+    "wrangler": "^4.107.0"
+  },
+  "author": "Ovidiu Eftimie",
+  "license": "MIT"
+}

@@ -65,3 +65,29 @@
   plan approval, Opus reviewer) per harness.json - present team plan to Ovidiu
   at next session start
 - Blockers: none
+
+## Session 3 - 2026-07-04 (Agent Teams: 4 teammates)
+- Teammates: capture (sonnet): workers/capture/ F004; retry (sonnet): workers/retry/
+  F005; mcp (sonnet, plan approval): workers/mcp/ + mcp-server/src/transport/ F006;
+  reviewer (opus): all three
+- Pre-work: origin/main (31 remote v2.x commits) merged into local main as f45486d;
+  mcp-server kept local deps (Neon in, supabase-js out, no major bumps). Not pushed.
+- Features completed: F004, F005, F006 (all passing; Opus review PASS incl. F1 fix)
+- Commits on phase2-workers: ca24efa (F005), b9dd676 (F006 SSE removal), 588cdb3
+  (F004), 8660834 (F006 worker), f6856d3 (F006 dep cleanup), e89e965 (F005 review fix)
+- Review: 1 medium fixed (retry validation throw burned retry budget), 2 informational
+  accepted (overlap = source-matching, type-list drift -> F010)
+- Discovered: F010 (consolidate duplicated services into workers/shared, prio 6);
+  live wildcard-CORS regression in the DEPLOYED Supabase capture function
+  (83b19ec reverted 6b72bf6) — flagged to Ovidiu, retired by F008 cutover
+- Integration issues: shared-working-tree git race (staged deletions swept into a
+  sibling commit + a HEAD reset); resolved no-loss, pathspec git rules issued;
+  platform task-list reset mid-session (cosmetic)
+- Tests: mcp-server 69 passing (2 env-gated skips) after SSE removal; workers:
+  capture 73, retry 44 (+1 skip), mcp 89; coverage 100/100/98.8 — all >= 95 gate
+- Cost note: 3x sonnet implementers + 1x opus reviewer + opus lead
+- Next: (1) Ovidiu deployment verification — wrangler login, secrets, deploy 3
+  Workers, live acceptance (201 capture both auth paths, cron retry run, real MCP
+  client over Streamable HTTP via /auth/token JWT); (2) decide merge/PR of
+  phase2-workers -> main; (3) Phase 3 single-session F007 -> F008 -> F009
+- Blockers: deployment verification needs Ovidiu (Cloudflare credentials)
