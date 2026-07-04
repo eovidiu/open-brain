@@ -9,14 +9,19 @@ This file is referenced in CLAUDE.md and loaded every session.
   fix (e89e965). origin/main's 31 remote v2.x commits merged into local main
   first (f45486d) — mcp-server kept the local dependency set (Neon in,
   supabase-js out; remote's openai/zod/vitest major bumps NOT taken).
-- DEPLOYMENT VERIFICATION PENDING (needs Ovidiu): wrangler auth + secrets, deploy
-  all three Workers, run the deployed-acceptance clauses (201s against live
-  capture, cron retry run, real MCP client over Streamable HTTP to the Worker URL
-  with a /auth/token JWT). Workers are bundle-checked (dry-run) but never deployed.
-- Next after that: Phase 3 single-session — F007 (CLI rewrite), F008 (cutover +
-  Supabase decommission, retires the live wildcard-CORS regression), F009
-  (docs/spec PR). F010 (service-copy consolidation into workers/shared) added
-  from review debt, priority 6.
+- F007 CLI rewrite COMPLETE (2026-07-04) on branch f007-cli-rewrite, not merged:
+  8-step Neon/Workers setup, cli vitest suite added (61 tests), supabase-js gone
+  from cli. init.sh full_test now runs BOTH workspace suites. The CLI's `openbrain
+  setup` steps 6-7 (migrations + wrangler deploy/secrets) now automate most of the
+  deployment-verification runbook.
+- DEPLOYMENT VERIFICATION PENDING (needs Ovidiu): wrangler login, then run the
+  new `openbrain setup` end-to-end (= F007 acceptance) which deploys the three
+  Workers and sets secrets; then the live acceptance clauses (201s against live
+  capture, cron retry run, real MCP client over Streamable HTTP with /auth/token
+  JWT — the one thing still mock-tested only).
+- Then: F008 cutover + Supabase decommission (needs Ovidiu: domain, Claude
+  Desktop reconfig; retires the live wildcard-CORS regression), F009 docs/spec
+  PR, F010 (service-copy consolidation, priority 6).
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18;
   Ovidiu holds the connection string (never in repo); test branch
   br-morning-morning-ab8igqsz gates integration tests via NEON_TEST_DATABASE_URL.
@@ -139,6 +144,20 @@ This file is referenced in CLAUDE.md and loaded every session.
   deliverable; unit tests cannot see compat-flag or unresolved-import failures
 - Ports must be faithful by default; any added validation/behavior is a defect
   unless it implements a named carry-forward or approved deviation
+
+## Meta-Session 2026-07-04b (F007, single-session)
+- Scope vs plan: stayed in cli/ + cli/package.json as declared, plus the
+  disclosed init.sh test-gate addition. One plan correction made DURING code
+  reading, before any edit: the plan said "delete secrets.ts (superseded by
+  wrangler secrets)" but the file generates the secret VALUES — reading all 17
+  files before editing caught a wrong deletion a grep of names alone suggested.
+- Unanticipated: cli had zero test infrastructure — the "add vitest first"
+  ordering was right; coverage gate would have been unmeasurable otherwise.
+- Transferable: for interactive CLIs, a thin ui.ts wrapper around the prompt
+  library makes every step testable by mocking one module — preserve that
+  pattern in any future CLI work. Vitest mock factories for steps need explicit
+  Promise<StepResult> typing or mockResolvedValueOnce narrows to the first
+  variant and tsc fails.
 
 ## Meta-Session 2026-07-04 (F004–F006, Phase 2 complete via Agent Teams)
 - Scope accuracy: all three features stayed in their assigned directories; one

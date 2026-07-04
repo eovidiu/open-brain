@@ -91,3 +91,22 @@
   client over Streamable HTTP via /auth/token JWT); (2) decide merge/PR of
   phase2-workers -> main; (3) Phase 3 single-session F007 -> F008 -> F009
 - Blockers: deployment verification needs Ovidiu (Cloudflare credentials)
+
+## Session 3 (continued) - 2026-07-04 - F007 single-session
+- Feature: F007 - CLI setup rewrite (Neon + Cloudflare Workers)
+- Status: complete (passing) on branch f007-cli-rewrite (commits bf1fafc code,
+  3ef084f init.sh cli-tests). NOT merged/pushed - awaiting Ovidiu.
+- Pre-work this session: phase2-workers merged to main and pushed (4c79f70).
+- Tests: cli 61 passing (new suite, first tests ever in cli); mcp-server 69
+  unaffected; init.sh full_test now runs both workspaces
+- Coverage: 95.7-100% on touched files (gate met); pre-existing untested
+  ui/openai/anthropic/secrets steps untouched, out of gate
+- Decisions: secrets.ts kept (generates values; wrangler uploads them);
+  migrations shell to scripts/migrate.sh w/ direct endpoint; worker URLs
+  persisted to .env as CAPTURE_WORKER_URL/MCP_WORKER_URL for status
+- Next: (1) Ovidiu: merge/push f007-cli-rewrite decision; (2) Ovidiu deployment
+  verification = F007 E2E acceptance + Phase-2 Worker live acceptance in one
+  sitting (wrangler login, secrets, deploy, live tests); (3) F008 cutover
+  (needs Ovidiu: domain, Claude Desktop reconfig, Supabase decommission);
+  (4) F009 docs/spec PR
+- Blockers: F008/F009 blocked on deployment verification
