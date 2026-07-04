@@ -5,7 +5,7 @@
 #
 # smoke_test — TypeScript compile check on both workspaces (<15s).
 #              Used by the TaskCompleted hook as a first-pass gate.
-# full_test  — compile check + Vitest suite (mcp-server workspace).
+# full_test  — compile check + Vitest suites (mcp-server and cli workspaces).
 #              Used by the lead's synthesis step and session-end validation.
 #
 # Stack: Node.js ESM, npm workspaces (mcp-server, cli), Vitest.
@@ -38,6 +38,9 @@ if [ "$TARGET" = "full_test" ]; then
     echo ""
     echo "--- Tests: mcp-server (vitest) ---"
     npm test --workspace=mcp-server 2>&1 | tail -25
+    echo ""
+    echo "--- Tests: cli (vitest) ---"
+    npm test --workspace=cli 2>&1 | tail -10
 fi
 
 echo ""
