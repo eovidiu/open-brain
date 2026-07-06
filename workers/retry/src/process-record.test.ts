@@ -21,9 +21,10 @@ vi.mock('open-brain-workers-shared', () => ({
   updateMemoryMetadata: mockUpdateMemoryMetadata,
   incrementEmbeddingRetry: mockIncrementEmbeddingRetry,
   incrementMetadataRetry: mockIncrementMetadataRetry,
+  fetchEmbedding: mockGenerateEmbedding,
+  extractMetadata: mockExtractMetadata,
+  toErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
-vi.mock('./embedding-service.js', () => ({ generateEmbedding: mockGenerateEmbedding }));
-vi.mock('./metadata-service.js', () => ({ extractMetadata: mockExtractMetadata }));
 
 import { processRecord } from './process-record.js';
 
@@ -96,12 +97,12 @@ describe('processRecord', () => {
     const result = await processRecord(sql, record({ metadata_status: 'degraded' }), ENV);
 
     expect(result.metadata).toBe('success');
-    expect(mockExtractMetadata).toHaveBeenCalledWith(
-      'some captured text',
-      'anthropic',
-      'sk-anthropic',
-      null,
-    );
+    expect(mockExtractMetadata).toHaveBeenCalledWith('some captured text', {
+      provider: 'anthropic',
+      anthropicApiKey: 'sk-anthropic',
+      openaiApiKey: 'sk-openai',
+      openaiMetadataApiKey: undefined,
+    });
     expect(mockUpdateMemoryMetadata).toHaveBeenCalledWith(sql, 'mem-1', metadata);
   });
 
@@ -149,6 +150,14 @@ describe('processRecord', () => {
       OPENAI_API_KEY: 'sk-openai',
     });
 
-    expect(mockExtractMetadata).toHaveBeenCalledWith('some captured text', 'anthropic', null, null);
+    // REGRESSION (F010): the general OpenAI key must always reach the
+    // metadata config — the old positional signature dropped it, stranding
+    // provider=openai runs on Anthropic when no metadata-specific key was set.
+    expect(mockExtractMetadata).toHaveBeenCalledWith('some captured text', {
+      provider: 'anthropic',
+      anthropicApiKey: undefined,
+      openaiApiKey: 'sk-openai',
+      openaiMetadataApiKey: undefined,
+    });
   });
 });

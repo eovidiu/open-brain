@@ -1,5 +1,7 @@
-import type { MemoryMetadata } from 'open-brain-workers-shared';
-import { getStats, getSystemConfig, listRecentMemories, searchMemories } from './db.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { MemoryMetadata } from './types.js';
+import type { Db } from './index.js';
+import { getStats, getSystemConfig, listRecentMemories, searchMemories } from './queries.js';
 
 const METADATA: MemoryMetadata = {
   type: 'insight',
@@ -14,7 +16,7 @@ const VECTOR = [0.1, 0.2, 0.3];
 
 function makeMockSql(resolvedValue: unknown) {
   const mock = vi.fn().mockResolvedValue(resolvedValue);
-  return mock as unknown as import('open-brain-workers-shared').Db;
+  return mock as unknown as Db;
 }
 
 function sqlText(mock: ReturnType<typeof vi.fn>, callIndex = 0): string {
@@ -43,7 +45,7 @@ describe('searchMemories', () => {
       similarity_score: 0.95,
     };
     const mockSql = vi.fn().mockResolvedValue([row]);
-    const sql = mockSql as unknown as import('open-brain-workers-shared').Db;
+    const sql = mockSql as unknown as Db;
 
     const results = await searchMemories(sql, VECTOR, 10, 'insight', '2026-01-01');
 
@@ -65,7 +67,7 @@ describe('searchMemories', () => {
 
   it('passes null for omitted filter_type/since', async () => {
     const mockSql = vi.fn().mockResolvedValue([]);
-    const sql = mockSql as unknown as import('open-brain-workers-shared').Db;
+    const sql = mockSql as unknown as Db;
 
     await searchMemories(sql, VECTOR, 5);
 
@@ -74,7 +76,7 @@ describe('searchMemories', () => {
 
   it('wraps a driver error with a sanitized message', async () => {
     const mockSql = vi.fn().mockRejectedValue(new Error('connection refused'));
-    const sql = mockSql as unknown as import('open-brain-workers-shared').Db;
+    const sql = mockSql as unknown as Db;
 
     await expect(searchMemories(sql, VECTOR, 5)).rejects.toThrow('Database operation failed');
   });
@@ -91,7 +93,7 @@ describe('listRecentMemories', () => {
       source: 'api',
     };
     const mockSql = vi.fn().mockResolvedValue([row]);
-    const sql = mockSql as unknown as import('open-brain-workers-shared').Db;
+    const sql = mockSql as unknown as Db;
 
     const results = await listRecentMemories(sql, 20);
 
@@ -110,7 +112,7 @@ describe('listRecentMemories', () => {
 
   it('filters by metadata type when filter_type is given', async () => {
     const mockSql = vi.fn().mockResolvedValue([]);
-    const sql = mockSql as unknown as import('open-brain-workers-shared').Db;
+    const sql = mockSql as unknown as Db;
 
     await listRecentMemories(sql, 20, 'task');
 

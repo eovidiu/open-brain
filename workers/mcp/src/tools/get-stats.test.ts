@@ -1,9 +1,12 @@
-import type { StatsResponse } from '../types.js';
+import type { StatsResponse } from 'open-brain-workers-shared';
 
-vi.mock('../db.js', () => ({ getStats: vi.fn() }));
+vi.mock('open-brain-workers-shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('open-brain-workers-shared')>();
+  return { ...actual, getStats: vi.fn() };
+});
 
 import { handleGetStats } from './get-stats.js';
-import { getStats } from '../db.js';
+import { getStats } from 'open-brain-workers-shared';
 
 const mockGetStats = vi.mocked(getStats);
 const FAKE_SQL = {} as import('open-brain-workers-shared').Db;

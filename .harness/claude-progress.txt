@@ -131,3 +131,19 @@
   fund Anthropic + flip provider if desired; custom domain; permanent
   Supabase delete; regenerate .env via `openbrain setup` (stale SUPABASE_* keys)
 - Blockers: none. System operational.
+
+## Session 4 - 2026-07-06 - F010 consolidation
+- Feature: F010 - consolidate duplicated Worker services into workers/shared. PASSING.
+- workers/shared gains services.ts (embedding + metadata, unified validation +
+  provider chain with the key-fallback fix baked in + regression test),
+  queries.ts (MCP reads), db-util.ts; 13 duplicated files deleted across
+  capture/retry/mcp
+- Tests: shared 47, capture 49, retry 19, mcp 68 - all green, tsc clean x4;
+  shared coverage 98.25%
+- Deployed: all three Workers redeployed on consolidated code; live smoke green
+  (capture 201 anthropic metadata; MCP search found the smoke capture)
+- Also this session (pre-F010): provider flipped to anthropic after Ovidiu
+  funded the account ($20); live-verified
+- Next: backlog only - BI-001 delete capability, capture custom domain,
+  permanent Supabase delete, regenerate stale .env via openbrain setup
+- Blockers: none

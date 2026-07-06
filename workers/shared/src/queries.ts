@@ -1,29 +1,21 @@
-// MCP read queries (search/list/stats/config), ported from
-// mcp-server/src/db/queries.ts. Adapted to take the `sql: Db` handle as an
-// explicit parameter (from open-brain-workers-shared's createDb) instead of
-// a module-level singleton, matching the Workers env-binding model.
-// insertMemory itself is reused as-is from open-brain-workers-shared for
-// capture_memory — not duplicated here.
-import type { Db, EmbeddingStatus, MemoryMetadata, MemorySource, MetadataStatus } from 'open-brain-workers-shared';
-import type { RecentMemory, SearchResult, StatsResponse, SystemConfig } from './types.js';
+// MCP read queries (search/list/stats/config). Consolidated from
+// workers/mcp/src/db.ts (F010); originally ported from
+// mcp-server/src/db/queries.ts. The `sql: Db` handle is an explicit
+// parameter — Workers get config per request from env bindings.
+import type { NeonQueryFunction } from '@neondatabase/serverless';
+import type {
+  EmbeddingStatus,
+  MemoryMetadata,
+  MemorySource,
+  MetadataStatus,
+  RecentMemory,
+  SearchResult,
+  StatsResponse,
+  SystemConfig,
+} from './types.js';
+import { run, toIso } from './db-util.js';
 
-function sanitizeDbError(context: string, error: { message: string }): Error {
-  console.error(`[db] ${context}: ${error.message}`);
-  return new Error(`Database operation failed: ${context}`);
-}
-
-async function run<T>(context: string, query: () => Promise<T>): Promise<T> {
-  try {
-    return await query();
-  } catch (error) {
-    throw sanitizeDbError(context, error as Error);
-  }
-}
-
-// timestamptz values arrive as Date (driver-parsed) or string; normalize to ISO
-function toIso(value: unknown): string {
-  return new Date(value as string | Date).toISOString();
-}
+type Db = NeonQueryFunction<false, false>;
 
 export async function searchMemories(
   sql: Db,

@@ -20,9 +20,12 @@ This file is referenced in CLAUDE.md and loaded every session.
   OPENAI_API_KEY — divergence tracked in F010).
   .env is STALE (still SUPABASE_* keys, no DATABASE_URL) — never modified per
   the no-.env-edits rule; `openbrain setup` regenerates it.
-- Remaining backlog: F010 (consolidate duplicated services into workers/shared,
-  unify metadata validation + key fallback), BI-001 (delete capability), custom
-  domain for capture (workers.dev interim), permanent Supabase delete.
+- F010 DONE (2026-07-06): duplicated services consolidated into workers/shared
+  (services.ts + queries.ts + db-util.ts, 13 files deleted); the retry
+  key-fallback gap and mcp's 7-type/reject-validator divergence are gone by
+  construction, with a regression test in shared. Redeployed + live-smoked.
+- Remaining backlog: BI-001 (delete capability), custom domain for capture
+  (workers.dev interim), permanent Supabase delete, stale .env regeneration.
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
   branch production (5 migrations); test branch br-morning-morning-ab8igqsz
   gates integration tests via NEON_TEST_DATABASE_URL.
@@ -145,6 +148,22 @@ This file is referenced in CLAUDE.md and loaded every session.
   deliverable; unit tests cannot see compat-flag or unresolved-import failures
 - Ports must be faithful by default; any added validation/behavior is a defect
   unless it implements a named carry-forward or approved deviation
+
+## Meta-Session 2026-07-06 (F010, single-session)
+- Scope vs plan: exactly the four packages named in the feature; no expansions.
+  The consolidation deleted 13 files and net-shrank the codebase while adding
+  coverage — the review-predicted debt (F3) plus the production incident
+  (key fallback) both closed by construction rather than by patching copies.
+- Unanticipated: none structural. The fiddly part was test-mock rewiring
+  (per-module vi.mock of local files becomes ONE partial mock of the shared
+  package per consumer) — mechanical but easy to get subtly wrong; running
+  each consumer suite immediately after its rewire kept errors local.
+- Transferable: when consolidating duplicated modules, port the RICHEST test
+  set into the shared package first and add a named regression test for every
+  production incident the duplication caused — the shared suite becomes the
+  contract that stops the next divergence at review time. Consumer-side error
+  semantics (throw vs degrade) belong in the CONSUMER, not the shared core:
+  one throwing core, wrappers choose.
 
 ## Meta-Session 2026-07-04c (F008+F009, autonomous deployment under blanket go-ahead)
 - Scope vs plan: full deployment executed without user interaction except one

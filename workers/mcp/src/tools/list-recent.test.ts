@@ -1,9 +1,12 @@
-import type { RecentMemory } from '../types.js';
+import type { RecentMemory } from 'open-brain-workers-shared';
 
-vi.mock('../db.js', () => ({ listRecentMemories: vi.fn() }));
+vi.mock('open-brain-workers-shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('open-brain-workers-shared')>();
+  return { ...actual, listRecentMemories: vi.fn() };
+});
 
 import { handleListRecent } from './list-recent.js';
-import { listRecentMemories } from '../db.js';
+import { listRecentMemories } from 'open-brain-workers-shared';
 
 const mockListRecentMemories = vi.mocked(listRecentMemories);
 const FAKE_SQL = {} as import('open-brain-workers-shared').Db;

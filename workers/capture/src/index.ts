@@ -3,11 +3,17 @@
 // replay-protected signature), AD-6 embedding/metadata degradation, and
 // metadata output validation verbatim; adapts Deno.serve/Deno.env to the
 // Workers fetch handler and env bindings.
-import { createDb, insertMemory, type InsertMemoryRecord, type MemorySource } from 'open-brain-workers-shared';
+import {
+  createDb,
+  extractMetadata,
+  fetchEmbedding,
+  insertMemory,
+  DEGRADED_METADATA,
+  type InsertMemoryRecord,
+  type MemorySource,
+} from 'open-brain-workers-shared';
 import { authenticate } from './auth.js';
 import { checkRateLimit } from './rate-limit.js';
-import { fetchEmbedding } from './embedding.js';
-import { extractMetadata, DEGRADED_METADATA } from './metadata.js';
 import type { Env } from './env.js';
 
 const VALID_SOURCES = new Set(['slack', 'claude', 'chatgpt', 'mcp_direct', 'api']);

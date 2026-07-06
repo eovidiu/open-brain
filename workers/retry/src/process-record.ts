@@ -1,14 +1,14 @@
 import {
+  extractMetadata,
+  fetchEmbedding,
   incrementEmbeddingRetry,
   incrementMetadataRetry,
+  toErrorMessage,
   updateMemoryEmbedding,
   updateMemoryMetadata,
   type Db,
   type RetryEligibleMemory,
 } from 'open-brain-workers-shared';
-import { generateEmbedding } from './embedding-service.js';
-import { extractMetadata } from './metadata-service.js';
-import { toErrorMessage } from './redact-error.js';
 import type { Env } from './types.js';
 
 type Outcome = 'success' | 'failure' | 'skipped';
@@ -25,7 +25,7 @@ async function retryEmbedding(
   env: Env,
 ): Promise<Outcome> {
   try {
-    const vector = await generateEmbedding(record.raw_text, env.OPENAI_API_KEY);
+    const vector = await fetchEmbedding(record.raw_text, env.OPENAI_API_KEY);
     await updateMemoryEmbedding(sql, record.id, vector);
     return 'success';
   } catch (err) {
@@ -40,12 +40,12 @@ async function retryMetadata(
   env: Env,
 ): Promise<Outcome> {
   try {
-    const metadata = await extractMetadata(
-      record.raw_text,
-      env.METADATA_LLM_PROVIDER ?? 'anthropic',
-      env.ANTHROPIC_API_KEY ?? null,
-      env.OPENAI_METADATA_API_KEY ?? null,
-    );
+    const metadata = await extractMetadata(record.raw_text, {
+      provider: env.METADATA_LLM_PROVIDER ?? 'anthropic',
+      anthropicApiKey: env.ANTHROPIC_API_KEY,
+      openaiApiKey: env.OPENAI_API_KEY,
+      openaiMetadataApiKey: env.OPENAI_METADATA_API_KEY,
+    });
     await updateMemoryMetadata(sql, record.id, metadata);
     return 'success';
   } catch (err) {

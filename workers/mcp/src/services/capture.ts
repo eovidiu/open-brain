@@ -3,11 +3,17 @@
 // separately into workers/capture/ (F004) — the two Workers are scope-
 // isolated siblings, not shared code, so each ports the source faithfully
 // on its own.
-import { insertMemory, type Db, type InsertMemoryRecord, type MemorySource } from 'open-brain-workers-shared';
+import {
+  extractMetadata,
+  fetchEmbedding,
+  insertMemory,
+  DEGRADED_METADATA,
+  type Db,
+  type InsertMemoryRecord,
+  type MemorySource,
+  type MetadataConfig,
+} from 'open-brain-workers-shared';
 import type { CaptureResult, EmbeddingStatus } from 'open-brain-workers-shared';
-import { DEGRADED_METADATA } from '../types.js';
-import { fetchEmbedding } from './embedding.js';
-import { extractMetadata, type MetadataConfig } from './metadata.js';
 
 const VALID_SOURCES: MemorySource[] = ['slack', 'claude', 'chatgpt', 'mcp_direct', 'api'];
 
@@ -64,10 +70,9 @@ export async function captureMemory(
   const embedding = embeddingResult.status === 'fulfilled' ? embeddingResult.value : null;
   const embeddingStatus: EmbeddingStatus = embedding ? 'ready' : 'pending';
 
-  const { metadata, status: metadataStatus } =
-    metadataResult.status === 'fulfilled'
-      ? metadataResult.value
-      : { metadata: DEGRADED_METADATA, status: 'degraded' as const };
+  const metadata = metadataResult.status === 'fulfilled' ? metadataResult.value : DEGRADED_METADATA;
+  const metadataStatus: 'ready' | 'degraded' =
+    metadataResult.status === 'fulfilled' ? 'ready' : 'degraded';
 
   const record: InsertMemoryRecord = {
     id: crypto.randomUUID(),

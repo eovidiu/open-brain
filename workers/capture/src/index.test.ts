@@ -6,16 +6,15 @@ const mockInsertMemory = vi.fn();
 const mockFetchEmbedding = vi.fn();
 const mockExtractMetadata = vi.fn();
 
-vi.mock('open-brain-workers-shared', () => ({
-  createDb: mockCreateDb,
-  insertMemory: mockInsertMemory,
-}));
-
-vi.mock('./embedding.js', () => ({ fetchEmbedding: mockFetchEmbedding }));
-
-vi.mock('./metadata.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./metadata.js')>();
-  return { ...actual, extractMetadata: mockExtractMetadata };
+vi.mock('open-brain-workers-shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('open-brain-workers-shared')>();
+  return {
+    ...actual,
+    createDb: mockCreateDb,
+    insertMemory: mockInsertMemory,
+    fetchEmbedding: mockFetchEmbedding,
+    extractMetadata: mockExtractMetadata,
+  };
 });
 
 const worker = (await import('./index.js')).default;
