@@ -96,7 +96,7 @@ describe('runSetup', () => {
     }
     expect(ALL_STEPS.map((s) => s.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(markStepComplete).toHaveBeenCalledTimes(8);
-    expect(ui.outro).toHaveBeenCalledWith(expect.stringContaining('openbrain status'));
+    expect(ui.outro).toHaveBeenCalledWith(expect.stringContaining('npm run dev --workspace=cli status'));
   });
 
   it('halts on a failed step and does not run later steps', async () => {

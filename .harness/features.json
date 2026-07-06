@@ -208,7 +208,7 @@
       "assigned_to": null,
       "test_file": "cli/src/setup.test.ts (+9 more test files; 61 tests)",
       "coverage": 97,
-      "notes": "Coverage on touched files: 95.7-100% stmts (untouched pre-existing ui/openai/anthropic/secrets steps remain untested, out of gate). E2E acceptance clause (real Neon string + authenticated wrangler) = Ovidiu deployment-verification session; combines with the pending Phase-2 Worker deploy verification.",
+      "notes": "E2E acceptance clause satisfied by Ovidiu's real run 2026-07-06 (full 8-step wizard: connection string, skips, overwrite prompt, migrations idempotent, 3 Workers deployed, Claude Desktop configured). Coverage 95.7-100% on touched files at implementation time.",
       "correction_cycles": 0,
       "scope_expansions": [],
       "approaches_tried": [
@@ -377,7 +377,7 @@
       "assigned_to": null,
       "test_file": "cli suite 69 tests (paths, overwrite guard, on-disk completeness regression, vars-vs-secrets matrix regression)",
       "coverage": 98,
-      "notes": "Stray cli/.env + cli/.openbrain-setup.json left for Ovidiu to delete (his call on .env files). Personal-use scope: repoRoot assumes a repo checkout, not an npm-installed package.",
+      "notes": "Verified by Ovidiu's successful end-to-end run 2026-07-06 (overwrite prompt fired and was accepted; .env rewritten; all Workers deployed clean). Outro text corrected to the repo-launch command. Stray cli/.env cleanup remains his call.",
       "failure_reason": null,
       "spec": null
     }

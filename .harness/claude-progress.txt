@@ -171,3 +171,14 @@
   PATH="/opt/homebrew/opt/libpq/bin:$PATH" npm run dev --workspace=cli
   (steps 2-4 skip, paste connection string, YES to the overwrite prompt)
 - Blockers: none
+
+## Session 5 (final) - 2026-07-06 - wizard verified by real user run
+- Ovidiu's third setup run completed end-to-end: overwrite prompt fired (yes),
+  .env rewritten (DATABASE_URL in, SUPABASE_* gone, worker URLs persisted),
+  migrations idempotent-skipped, 3 Workers redeployed clean, Claude Desktop
+  reconfigured. F007's E2E acceptance clause now satisfied by an actual user.
+- Post-run health: mcp /health ok (7 memories), capture 204, retry 404.
+- Outro text fixed: 'openbrain status' -> 'npm run dev --workspace=cli status'
+  (bin name only exists on global npm install).
+- System state: fully operational, .env current, nothing stale left except
+  cli/.env + cli/.openbrain-setup.json (Ovidiu's rm, optional).
