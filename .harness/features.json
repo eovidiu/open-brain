@@ -302,7 +302,7 @@
       "id": "F010",
       "description": "Consolidate the embedding/metadata service copies and MCP db queries (duplicated across workers/capture, workers/retry, workers/mcp per the accepted Phase-2 structural duplication) into workers/shared, unifying metadata validation semantics (one VALID_TYPES list, coerce-to-unknown, array caps, sentiment passthrough) so the three-way divergence found in review (F1/F3, 2026-07-04) cannot recur. ACCEPTANCE: single implementation in workers/shared consumed by all three Workers; all Worker suites green; no behavior change at the HTTP/tool contract level.",
       "priority": 6,
-      "status": "pending",
+      "status": "passing",
       "scope": [
         "workers/shared/",
         "workers/capture/",
@@ -316,12 +316,14 @@
       ],
       "correction_cycles": 0,
       "scope_expansions": [],
-      "approaches_tried": [],
+      "approaches_tried": [
+        "TDD: shared services.test.ts written red-first incl. an explicit regression test for the retry key-fallback bug (provider=openai + only OPENAI_API_KEY must call OpenAI). Unified semantics: 9-type coerce-to-unknown validation, 50-item caps, sentiment passthrough, one prompt, provider chain honoring requested provider with cross-provider missing-key fallback. Shared extractMetadata/fetchEmbedding THROW; degrading consumers (capture/mcp) wrap in allSettled, retry counts throws \u2014 per-consumer error contracts preserved. mcp reject-on-invalid-type validator and 7-type prompt superseded (deliberate, per feature spec). MCP read queries moved to shared/queries.ts with db-util extraction. 13 duplicated files deleted. Bundle dry-runs clean; redeployed; live smoke green (201 + semantic search hit)."
+      ],
       "discovered_via": "F006",
       "assigned_to": null,
-      "test_file": null,
-      "coverage": null,
-      "notes": null,
+      "test_file": "workers/shared/src/services.test.ts (23) + queries.test.ts; suites: shared 47, capture 49, retry 19, mcp 68",
+      "coverage": 98.25,
+      "notes": "mcp behavior change within spec: off-list metadata type now stored as unknown/ready instead of degraded (unification mandate). types.ts declaration-only at 0% (established exception).",
       "failure_reason": null,
       "spec": null
     }
