@@ -24,8 +24,11 @@ This file is referenced in CLAUDE.md and loaded every session.
   (services.ts + queries.ts + db-util.ts, 13 files deleted); the retry
   key-fallback gap and mcp's 7-type/reject-validator divergence are gone by
   construction, with a regression test in shared. Redeployed + live-smoked.
-- Remaining backlog: BI-001 (delete capability), custom domain for capture
-  (workers.dev interim), permanent Supabase delete, stale .env regeneration.
+- F011 DONE (2026-07-06): delete_memory tool on both MCP hosts (spec v1.2.0,
+  PR #81); hard delete by exact id, explicit NOT_FOUND, no bulk delete.
+- Remaining backlog: BI-002 (edit memory), BI-003 (capture events), custom
+  domain for capture (workers.dev interim), permanent Supabase delete, stale
+  .env regeneration (Ovidiu's 3-minute `openbrain setup` run).
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
   branch production (5 migrations); test branch br-morning-morning-ab8igqsz
   gates integration tests via NEON_TEST_DATABASE_URL.
@@ -148,6 +151,18 @@ This file is referenced in CLAUDE.md and loaded every session.
   deliverable; unit tests cannot see compat-flag or unresolved-import failures
 - Ports must be faithful by default; any added validation/behavior is a defect
   unless it implements a named carry-forward or approved deviation
+
+## Meta-Session 2026-07-06b (F011, single-session)
+- Scope vs plan: exactly as planned (spec-first, two db layers, two hosts,
+  live proof). Zero corrections, zero expansions; the consolidated shared
+  package made the Worker side a 6-line handler.
+- Unanticipated: worker server.test asserts registration order against
+  TOOL_NAMES — tool registration order is part of that suite's contract;
+  register new tools last (or update TOOL_NAMES order deliberately).
+- Transferable: for destructive user-facing capabilities, encode the safety
+  posture in the SPEC as requirements (exact-id only, explicit not-found)
+  before writing code — the FR numbers then become test names and the
+  design conversation is already settled when implementation starts.
 
 ## Meta-Session 2026-07-06 (F010, single-session)
 - Scope vs plan: exactly the four packages named in the feature; no expansions.
