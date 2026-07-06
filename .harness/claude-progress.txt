@@ -147,3 +147,14 @@
 - Next: backlog only - BI-001 delete capability, capture custom domain,
   permanent Supabase delete, regenerate stale .env via openbrain setup
 - Blockers: none
+
+## Session 5 - 2026-07-06 - F011 delete capability
+- Feature: F011 - delete_memory MCP tool (closes backlog BI-001). PASSING.
+- Spec v1.2.0 (FR-DEL-01..04); hard delete by exact id, explicit NOT_FOUND,
+  no bulk/query delete, MCP surface only
+- Both hosts serve 5 tools (stdio verified via handshake; Worker deployed and
+  live-proven: capture -> delete -> NOT_FOUND on repeat -> search gone)
+- Tests: mcp-server 74, cli 61, shared 50, capture 49, retry 19, mcp 73 - all green
+- Remaining backlog: BI-002 edit memory, BI-003 events, custom domain,
+  permanent Supabase delete, Ovidiu's .env refresh (his 3-minute action)
+- Blockers: none

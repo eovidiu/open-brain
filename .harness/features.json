@@ -326,6 +326,34 @@
       "notes": "mcp behavior change within spec: off-list metadata type now stored as unknown/ready instead of degraded (unification mandate). types.ts declaration-only at 0% (established exception).",
       "failure_reason": null,
       "spec": null
+    },
+    {
+      "id": "F011",
+      "description": "Delete capability (backlog BI-001): delete_memory MCP tool on both the stdio server and the MCP Worker. Hard delete by exact id only (no bulk, no delete-by-query); not-found returns an explicit error; no HTTP delete endpoint on the capture Worker. ACCEPTANCE: spec amended via merged PR (tool contract + data retention); deleteMemory in workers/shared and mcp-server db layers with tests; tool registered and tested in both MCP hosts; live proof on the deployed Worker (capture -> delete -> search confirms gone); all suites green, coverage >=95% on touched code.",
+      "priority": 7,
+      "status": "passing",
+      "scope": [
+        "workers/shared/",
+        "workers/mcp/",
+        "mcp-server/src/",
+        "docs/"
+      ],
+      "depends_on": [
+        "F002",
+        "F010"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [
+        "Spec-first (v1.2.0, FR-DEL-01..04) then TDD red-first in both db layers and both hosts. One SQL statement (DELETE..RETURNING id) implemented twice by design (workers/shared + standalone mcp-server). Worker registration order must match TOOL_NAMES (server.test asserts order). Live proof on deployed Worker: capture -> delete {deleted:true} -> second delete NOT_FOUND -> search confirms gone; stdio host verified listing 5 tools."
+      ],
+      "discovered_via": null,
+      "assigned_to": null,
+      "test_file": "workers/shared queries.test.ts (+3), mcp-server db/queries.test.ts (+3) + tools/delete-memory.test.ts, workers/mcp tools/delete-memory.test.ts + server.test.ts envelope tests",
+      "coverage": 100,
+      "notes": "No HTTP delete on capture Worker per FR-DEL-04. stdio needs no deploy (local dist rebuilt).",
+      "failure_reason": null,
+      "spec": null
     }
   ]
 }
