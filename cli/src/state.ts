@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SetupState } from './types.js';
+import { repoRoot } from './paths.js';
 
 const STATE_FILE = '.openbrain-setup.json';
 
 function getStatePath(): string {
-  return path.resolve(process.cwd(), STATE_FILE);
+  return path.resolve(repoRoot(), STATE_FILE);
 }
 
 export function loadState(): SetupState {

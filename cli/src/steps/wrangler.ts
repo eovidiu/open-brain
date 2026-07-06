@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as ui from '../ui.js';
+import { repoRoot } from '../paths.js';
 import { saveEnv } from '../env.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
@@ -78,13 +79,14 @@ export const wranglerStep: SetupStep = {
         continue;
       }
 
+      const workerDir = path.join(repoRoot(), worker.dir);
       const s = ui.spinner();
       try {
-        ensureDependencies(worker.dir);
+        ensureDependencies(workerDir);
 
         s.start(`Deploying ${worker.name}...`);
         const output = execSync('npx wrangler deploy', {
-          cwd: worker.dir,
+          cwd: workerDir,
           stdio: 'pipe',
           timeout: 180000,
         }).toString();
@@ -127,11 +129,12 @@ function ensureDependencies(dir: string): void {
 }
 
 function uploadSecrets(worker: WorkerSpec, env: EnvFile): void {
+  const workerDir = path.join(repoRoot(), worker.dir);
   for (const key of worker.secrets) {
     const value = env.values[key];
     if (!value) continue;
     execSync(`npx wrangler secret put ${key}`, {
-      cwd: worker.dir,
+      cwd: workerDir,
       stdio: 'pipe',
       timeout: 60000,
       input: value,

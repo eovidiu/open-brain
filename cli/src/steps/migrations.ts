@@ -1,6 +1,7 @@
 import { execSync, execFileSync } from 'node:child_process';
 import * as ui from '../ui.js';
 import { hasEnvVar } from '../env.js';
+import { repoRoot } from '../paths.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
 export const migrationsStep: SetupStep = {
@@ -38,6 +39,7 @@ export const migrationsStep: SetupStep = {
     try {
       s.start('Applying database migrations (scripts/migrate.sh)...');
       const output = execFileSync('bash', ['scripts/migrate.sh'], {
+        cwd: repoRoot(),
         env: { ...process.env, DATABASE_URL: directUrl },
         stdio: 'pipe',
         timeout: 120000,

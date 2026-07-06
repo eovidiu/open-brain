@@ -7,3 +7,4 @@ dist/
 coverage/
 .supabase/
 supabase/.temp/
+.openbrain-setup.json

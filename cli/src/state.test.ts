@@ -2,13 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+// The state file is anchored at the repo root (not process.cwd()); point the
+// root at a temp dir for isolation.
+const { mockRepoRoot } = vi.hoisted(() => ({ mockRepoRoot: vi.fn<() => string>() }));
+vi.mock('./paths.js', () => ({ repoRoot: mockRepoRoot }));
+
 import { loadState, saveState, markStepComplete } from './state.js';
 
 let tmpDir: string;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openbrain-state-'));
-  vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
+  mockRepoRoot.mockReturnValue(tmpDir);
 });
 
 afterEach(() => {
