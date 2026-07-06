@@ -3,9 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2026-07-04"
 
 [vars]
-# Non-secret configuration. Metadata-extraction provider: "openai" or "anthropic"
+# Non-secret configuration. Metadata-extraction provider: "anthropic" or "openai"
 # (anthropic requires funded API credits on the Anthropic account).
-METADATA_LLM_PROVIDER = "openai"
+METADATA_LLM_PROVIDER = "anthropic"
 
 # Secrets (set with `wrangler secret put <NAME>`, never committed):
 #   DATABASE_URL              Neon connection string (direct endpoint)
