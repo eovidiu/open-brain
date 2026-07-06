@@ -13,10 +13,11 @@ This file is referenced in CLAUDE.md and loaded every session.
   PAUSED (rollback bound; permanent delete is a later one-click). Spec lives at
   docs/open-brain-spec.md (v1.1.0, PR #80); ../open-brain-spec.md is a stale
   duplicate.
-- OPERATIONAL NOTES: METADATA_LLM_PROVIDER=openai everywhere — the Anthropic
-  account has NO API credits (calls fail on billing); flip back per Worker after
-  funding. Retry worker needs the OPENAI_METADATA_API_KEY secret (its
-  selectCaller never falls back to OPENAI_API_KEY — divergence tracked in F010).
+- OPERATIONAL NOTES: METADATA_LLM_PROVIDER=anthropic everywhere (2026-07-06,
+  Ovidiu funded the account $20; live-verified 201 + metadata ready; ~$0.35/mo
+  at current volume). OpenAI remains the fallback key. Retry worker keeps the
+  OPENAI_METADATA_API_KEY secret (its selectCaller never falls back to
+  OPENAI_API_KEY — divergence tracked in F010).
   .env is STALE (still SUPABASE_* keys, no DATABASE_URL) — never modified per
   the no-.env-edits rule; `openbrain setup` regenerates it.
 - Remaining backlog: F010 (consolidate duplicated services into workers/shared,
