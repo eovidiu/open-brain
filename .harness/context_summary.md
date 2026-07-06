@@ -35,11 +35,11 @@ This file is referenced in CLAUDE.md and loaded every session.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
-- Architecture: personal knowledge system per `../open-brain-spec.md` (v1.0.0-MVP) — capture endpoint,
-  async retry worker, Postgres + pgvector store, MCP server (stdio + SSE, JWT/HMAC auth)
-- Current backend: Supabase (project lxwtqegyhrfixnfctkne) — Postgres, edge functions, secrets
-- Target backend: Neon.tech serverless Postgres; Cloudflare Workers available for compute
-  (capture endpoint, retry cron, SSE hosting)
+- Architecture: personal knowledge system per docs/open-brain-spec.md (v1.2.0) and
+  docs/architecture.md (C4) — capture Worker, retry cron Worker, MCP Worker
+  (Streamable HTTP), local stdio MCP server, Neon Postgres + pgvector
+- Backend: Neon (divine-waterfall-85490868) + Cloudflare Workers, deployed and live;
+  old Supabase project lxwtqegyhrfixnfctkne is PAUSED (permanent delete pending)
 - Spec Prime Rule: the spec is versioned in git and changed via PR; verbal amendments have no standing
 
 ## Domain: Backend Migration (Supabase → Neon)
