@@ -144,6 +144,21 @@ export async function listRecentMemories(
   }));
 }
 
+// Hard delete by exact id (FR-DEL-01..03). Not-found surfaces as an explicit
+// error rather than a silent success; bulk/query deletion is deliberately
+// not implemented.
+export async function deleteMemory(id: string): Promise<{ id: string }> {
+  const sql = getDb();
+
+  const rows = await run('delete memory', () => sql`
+    DELETE FROM memories WHERE id = ${id} RETURNING id
+  `);
+  if (rows.length === 0) {
+    throw new Error(`Memory not found: ${id}`);
+  }
+  return { id: rows[0].id as string };
+}
+
 // Aggregate stats query
 export async function getStats(): Promise<StatsResponse> {
   const sql = getDb();

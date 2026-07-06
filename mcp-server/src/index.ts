@@ -4,6 +4,7 @@ import { getSystemConfig } from './db/queries.js';
 import { handleSearchBrain } from './tools/search-brain.js';
 import { handleListRecent } from './tools/list-recent.js';
 import { handleGetStats } from './tools/get-stats.js';
+import { handleDeleteMemory } from './tools/delete-memory.js';
 import { handleCaptureMemory, CaptureValidationError, DbWriteError } from './tools/capture-memory.js';
 import { startStdioTransport } from './transport/stdio.js';
 import { createCaptureRateLimiter } from './auth/rate-limiter.js';
@@ -91,6 +92,35 @@ function createServer(): McpServer {
         const message = err instanceof Error ? err.message : 'Internal error';
         console.error(`[get_stats] ${message}`);
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'STATS_FAILED', message: 'Failed to get stats' }) }], isError: true };
+      }
+    },
+  );
+
+  // delete_memory
+  server.tool(
+    'delete_memory',
+    'Permanently delete one memory by its exact id. The id must come from a prior search_brain or list_recent result.',
+    {
+      id: z.string().uuid(),
+    },
+    async (params) => {
+      try {
+        const result = await handleDeleteMemory(params);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error';
+        console.error(`[delete_memory] ${message}`);
+        const notFound = message.startsWith('Memory not found');
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              error: notFound ? 'NOT_FOUND' : 'DELETE_FAILED',
+              message: notFound ? message : 'Failed to delete memory',
+            }),
+          }],
+          isError: true,
+        };
       }
     },
   );

@@ -12,8 +12,9 @@ import { handleSearchBrain } from './tools/search-brain.js';
 import { handleListRecent } from './tools/list-recent.js';
 import { handleGetStats } from './tools/get-stats.js';
 import { handleCaptureMemory, CaptureValidationError, DbWriteError } from './tools/capture-memory.js';
+import { handleDeleteMemory } from './tools/delete-memory.js';
 
-export const TOOL_NAMES = ['search_brain', 'list_recent', 'get_stats', 'capture_memory'] as const;
+export const TOOL_NAMES = ['search_brain', 'list_recent', 'get_stats', 'capture_memory', 'delete_memory'] as const;
 
 export interface ServerDeps {
   sql: Db;
@@ -135,6 +136,34 @@ export function createServer(deps: ServerDeps): McpServer {
           return textResult({ error: 'DB_WRITE_FAILED', message: 'Failed to persist memory' }, true);
         }
         throw err;
+      }
+    },
+  );
+
+  server.registerTool(
+    'delete_memory',
+    {
+      description:
+        'Permanently delete one memory by its exact id. The id must come from a prior search_brain or list_recent result.',
+      inputSchema: {
+        id: z.string().uuid(),
+      },
+    },
+    async (params) => {
+      try {
+        const result = await handleDeleteMemory(deps.sql, params);
+        return textResult(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error';
+        console.error(`[delete_memory] ${message}`);
+        const notFound = message.startsWith('Memory not found');
+        return textResult(
+          {
+            error: notFound ? 'NOT_FOUND' : 'DELETE_FAILED',
+            message: notFound ? message : 'Failed to delete memory',
+          },
+          true,
+        );
       }
     },
   );

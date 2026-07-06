@@ -1,0 +1,3 @@
+features.json changed but claude-progress.txt has no new handoff.
+F011 is in-progress but missing test_file or coverage.
+Uncommitted .harness/ metadata - commit with a docs: prefix.

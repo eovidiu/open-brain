@@ -5,6 +5,7 @@ const { mockSql } = vi.hoisted(() => ({ mockSql: vi.fn() }));
 vi.mock('@neondatabase/serverless', () => ({ neon: vi.fn(() => mockSql) }));
 
 import {
+  deleteMemory,
   getStats,
   getSystemConfig,
   incrementEmbeddingRetry,
@@ -351,5 +352,30 @@ describe('incrementMetadataRetry', () => {
     await expect(incrementMetadataRetry('mem-1', 'err')).rejects.toThrow(
       'Database operation failed: increment metadata retry',
     );
+  });
+});
+
+describe('deleteMemory', () => {
+  it('deletes by id and returns the deleted id', async () => {
+    mockSql.mockResolvedValueOnce([{ id: 'mem-1' }]);
+
+    const result = await deleteMemory('mem-1');
+
+    expect(sqlText()).toContain('DELETE FROM memories');
+    expect(sqlText()).toContain('RETURNING id');
+    expect(sqlParams()).toEqual(['mem-1']);
+    expect(result).toEqual({ id: 'mem-1' });
+  });
+
+  it('throws an explicit not-found error when no row matches', async () => {
+    mockSql.mockResolvedValueOnce([]);
+
+    await expect(deleteMemory('missing-id')).rejects.toThrow('Memory not found: missing-id');
+  });
+
+  it('wraps driver errors with a sanitized message', async () => {
+    mockSql.mockRejectedValueOnce(new Error('connection refused'));
+
+    await expect(deleteMemory('mem-1')).rejects.toThrow('Database operation failed');
   });
 });

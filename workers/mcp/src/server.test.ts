@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 vi.mock('./tools/search-brain.js', () => ({ handleSearchBrain: vi.fn() }));
 vi.mock('./tools/list-recent.js', () => ({ handleListRecent: vi.fn() }));
 vi.mock('./tools/get-stats.js', () => ({ handleGetStats: vi.fn() }));
+vi.mock('./tools/delete-memory.js', () => ({ handleDeleteMemory: vi.fn() }));
 vi.mock('./tools/capture-memory.js', async () => {
   const actual = await vi.importActual<typeof import('./tools/capture-memory.js')>('./tools/capture-memory.js');
   return { ...actual, handleCaptureMemory: vi.fn() };
@@ -12,6 +13,7 @@ import { createServer, TOOL_NAMES } from './server.js';
 import { handleSearchBrain } from './tools/search-brain.js';
 import { handleListRecent } from './tools/list-recent.js';
 import { handleGetStats } from './tools/get-stats.js';
+import { handleDeleteMemory } from './tools/delete-memory.js';
 import { handleCaptureMemory, CaptureValidationError, DbWriteError } from './tools/capture-memory.js';
 import { RateLimiter } from './auth/rate-limiter.js';
 import type { Env } from './env.js';
@@ -19,6 +21,7 @@ import type { Env } from './env.js';
 const mockHandleSearchBrain = vi.mocked(handleSearchBrain);
 const mockHandleListRecent = vi.mocked(handleListRecent);
 const mockHandleGetStats = vi.mocked(handleGetStats);
+const mockHandleDeleteMemory = vi.mocked(handleDeleteMemory);
 const mockHandleCaptureMemory = vi.mocked(handleCaptureMemory);
 
 const FAKE_SQL = {} as import('open-brain-workers-shared').Db;
@@ -36,7 +39,7 @@ function getCallback(spy: ReturnType<typeof vi.spyOn>, toolName: string) {
 }
 
 describe('createServer', () => {
-  it('registers exactly the 4 expected tools', () => {
+  it('registers exactly the 5 expected tools', () => {
     const registerSpy = vi.spyOn(McpServer.prototype, 'registerTool');
     const deps = { sql: FAKE_SQL, env: FAKE_ENV, captureLimiter: new RateLimiter({ windowMs: 60_000, maxRequests: 60 }) };
 
@@ -189,6 +192,42 @@ describe('createServer', () => {
 
       mockHandleCaptureMemory.mockRejectedValueOnce(new Error('unexpected'));
       await expect(cb({ text: 'hello' })).rejects.toThrow('unexpected');
+    });
+  });
+
+  describe('delete_memory', () => {
+    function deleteCb() {
+      const registerSpy = vi.spyOn(McpServer.prototype, 'registerTool');
+      const deps = { sql: FAKE_SQL, env: FAKE_ENV, captureLimiter: new RateLimiter({ windowMs: 60_000, maxRequests: 60 }) };
+      createServer(deps);
+      const cb = getCallback(registerSpy, 'delete_memory');
+      registerSpy.mockRestore();
+      return cb;
+    }
+
+    it('returns the deletion confirmation on success', async () => {
+      mockHandleDeleteMemory.mockResolvedValueOnce({ id: 'mem-1', deleted: true });
+      const result = await deleteCb()({ id: 'mem-1' });
+      expect(JSON.parse(result.content[0].text)).toEqual({ id: 'mem-1', deleted: true });
+      expect(result.isError).toBeFalsy();
+    });
+
+    it('maps the not-found error to NOT_FOUND with the id in the message', async () => {
+      mockHandleDeleteMemory.mockRejectedValueOnce(new Error('Memory not found: missing-id'));
+      const result = await deleteCb()({ id: 'missing-id' });
+      expect(result.isError).toBe(true);
+      const body = JSON.parse(result.content[0].text);
+      expect(body.error).toBe('NOT_FOUND');
+      expect(body.message).toContain('missing-id');
+    });
+
+    it('maps other failures to DELETE_FAILED without leaking detail', async () => {
+      mockHandleDeleteMemory.mockRejectedValueOnce(new Error('connection refused to db-host'));
+      const result = await deleteCb()({ id: 'mem-1' });
+      expect(result.isError).toBe(true);
+      const body = JSON.parse(result.content[0].text);
+      expect(body.error).toBe('DELETE_FAILED');
+      expect(body.message).not.toContain('db-host');
     });
   });
 });

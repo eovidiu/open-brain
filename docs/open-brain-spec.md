@@ -1,10 +1,10 @@
 # Open Brain: System Specification
 
-**Version**: 1.1.0  
+**Version**: 1.2.0  
 **Status**: Engineering-ready  
 **Owner**: Ovidiu  
-**Last Updated**: 2026-07-04  
-**Changelog**: 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
+**Last Updated**: 2026-07-06  
+**Changelog**: 1.2.0 — delete capability (2026-07-06): `delete_memory` MCP tool added on both hosts (hard delete by exact id, owner-initiated only; closes BI-001); 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
 
 ---
 
@@ -96,7 +96,7 @@ Current AI platforms implement memory as a lock-in mechanism: each platform's me
 - Messaging platform integrations beyond the webhook trigger pattern
 - Visualization dashboards
 - Migration tooling from third-party memory systems (setup guide only)
-- Delete/edit memory endpoints
+- Edit memory endpoint
 - Multi-source deduplication
 
 ---
@@ -247,7 +247,7 @@ Requirements use RFC 2119: MUST / SHOULD / MAY.
 
 ### 3.3 Retrieval — MCP Tools
 
-The MCP server exposes **exactly four tools** in MVP.
+The MCP server exposes **exactly five tools**.
 
 #### Tool: `search_brain`
 
@@ -284,6 +284,16 @@ The MCP server exposes **exactly four tools** in MVP.
 **FR-MCP-01**: MUST accept `text` and optional `source`, route through the identical capture pipeline as the HTTP endpoint (including auth, validation, rate limiting), and return the same confirmation payload.
 
 **FR-MCP-02**: The same rate limits defined in FR-CAP-07 MUST apply to `capture_memory` invocations. The MCP tool is not a bypass vector.
+
+#### Tool: `delete_memory`
+
+**FR-DEL-01**: Given an exact memory `id` (UUID), MUST hard-delete that row from `memories` and return the deleted `id`. Deletion is permanent; there is no soft-delete or recycle bin.
+
+**FR-DEL-02**: The tool MUST accept only a single exact `id`. Bulk deletion, deletion by query, and deletion by filter are out of scope — an AI client misinterpreting a prompt MUST NOT be able to remove more than one specifically identified memory per call.
+
+**FR-DEL-03**: When no row matches the `id`, the tool MUST return an explicit error (not a silent success), so the client can report the miss.
+
+**FR-DEL-04**: `delete_memory` MUST be exposed on both MCP hosts (stdio server and MCP Worker). No HTTP delete endpoint exists on the capture Worker; deletion is a management action and lives in the MCP surface only.
 
 ### 3.4 Retrieval Safety
 
@@ -712,6 +722,24 @@ Cloudflare Cron Trigger fires the retry Worker's scheduled() handler every 60 se
 
 **Output**: identical to the HTTP capture success response.
 
+#### `delete_memory`
+
+```json
+{
+  "name": "delete_memory",
+  "description": "Permanently delete one memory by its exact id. The id must come from a prior search_brain or list_recent result.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "format": "uuid" }
+    },
+    "required": ["id"]
+  }
+}
+```
+
+**Output**: `{ "id": "<uuid>", "deleted": true }` on success. A non-existent `id` returns a tool error (`Memory not found: <uuid>`), never a silent success.
+
 ### 6.3 Token Issuance Endpoint
 
 **POST** `/auth/token` on the MCP Worker  
@@ -800,7 +828,7 @@ The PostgreSQL `memories` table is the sole authoritative source of truth. AI pl
 
 ### 7.2 Data Retention
 
-- Memories have no automatic expiry; they persist until explicitly deleted (delete endpoint is Backlog)
+- Memories have no automatic expiry; they persist until the owner explicitly deletes them via the `delete_memory` MCP tool (the only removal path for `raw_text`)
 - `embedding_status = 'failed'` records are retained, not purged
 - The system MUST NOT implement automatic deletion or archiving without explicit owner action
 
@@ -1257,7 +1285,7 @@ All items below are OUT OF SCOPE for MVP.
 
 | ID | Description | Notes |
 |----|-------------|-------|
-| BI-001 | Delete memory endpoint (`DELETE /memories/:id`) | Simple; deferred to keep MVP surface small |
+| BI-001 | Delete memory | Implemented 2026-07-06 as the `delete_memory` MCP tool (spec v1.2.0, F011) |
 | BI-002 | Edit memory endpoint (correct `raw_text` post-capture) | Requires re-embedding; non-trivial |
 | BI-003 | `memory.captured` event for downstream automation | Foundation for digest generation, agent triggers |
 | BI-004 | Visualization dashboard (thinking patterns over time) | Build on top of `get_stats` + `search_brain` |
