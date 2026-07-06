@@ -80,7 +80,7 @@ export async function runSetup(): Promise<void> {
     ui.outro(
       'Setup complete.\n\n' +
       '  Check component health:\n' +
-      '    openbrain status\n\n' +
+      '    npm run dev --workspace=cli status\n\n' +
       '  Claude Desktop uses the stdio MCP server directly;\n' +
       '  remote MCP clients connect to the MCP Worker URL in .env.'
     );
