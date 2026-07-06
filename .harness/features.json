@@ -367,14 +367,15 @@
       "depends_on": [
         "F007"
       ],
-      "correction_cycles": 0,
+      "correction_cycles": 1,
       "scope_expansions": [],
       "approaches_tried": [
-        "Root cause reproduced from Ovidiu's transcript: npm run --workspace sets cwd to the package dir, so every process.cwd() anchor (env/state/migrations/workers/mcp-server path) pointed at cli/. Fix: repoRoot() from import.meta.url, wired into all six anchor sites, tests mock ./paths.js. Overwrite guard per Ovidiu's explicit design: confirm prompt (default no); decline/cancel -> retriable failure, file byte-identical (asserted in test). Discriminating live check: status command run via npm --workspace now reports the ROOT .env's missing DATABASE_URL, not the stray cli/.env that has one."
+        "Root cause reproduced from Ovidiu's transcript: npm run --workspace sets cwd to the package dir, so every process.cwd() anchor (env/state/migrations/workers/mcp-server path) pointed at cli/. Fix: repoRoot() from import.meta.url, wired into all six anchor sites, tests mock ./paths.js. Overwrite guard per Ovidiu's explicit design: confirm prompt (default no); decline/cancel -> retriable failure, file byte-identical (asserted in test). Discriminating live check: status command run via npm --workspace now reports the ROOT .env's missing DATABASE_URL, not the stray cli/.env that has one.",
+        "Live re-run by Ovidiu exposed two more defects: secret matrix collided with wrangler.toml [vars] (the exact 10053 I had worked around manually on 07-04 without back-porting to the CLI), and write-env isComplete read in-memory values so a stale .env skipped the rewrite. Both fixed red-first; deploy.md secret table corrected to distinguish vars from secrets."
       ],
       "discovered_via": "F007",
       "assigned_to": null,
-      "test_file": "cli/src/paths.test.ts, write-env.test.ts overwrite-guard tests, state.test.ts repoRoot anchoring (cli suite 67 tests)",
+      "test_file": "cli suite 69 tests (paths, overwrite guard, on-disk completeness regression, vars-vs-secrets matrix regression)",
       "coverage": 98,
       "notes": "Stray cli/.env + cli/.openbrain-setup.json left for Ovidiu to delete (his call on .env files). Personal-use scope: repoRoot assumes a repo checkout, not an npm-installed package.",
       "failure_reason": null,
