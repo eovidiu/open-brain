@@ -1,16 +1,16 @@
 vi.mock('agents/mcp', () => ({ createMcpHandler: vi.fn() }));
 vi.mock('open-brain-workers-shared', async () => {
   const actual = await vi.importActual<typeof import('open-brain-workers-shared')>('open-brain-workers-shared');
-  return { ...actual, createDb: vi.fn(() => vi.fn().mockResolvedValue([{ count: 5 }])) };
-});
-vi.mock('./db.js', async () => {
-  const actual = await vi.importActual<typeof import('./db.js')>('./db.js');
-  return { ...actual, getSystemConfig: vi.fn() };
+  return {
+    ...actual,
+    createDb: vi.fn(() => vi.fn().mockResolvedValue([{ count: 5 }])),
+    getSystemConfig: vi.fn(),
+  };
 });
 
 import worker from './index.js';
 import { createMcpHandler } from 'agents/mcp';
-import { getSystemConfig } from './db.js';
+import { getSystemConfig } from 'open-brain-workers-shared';
 import { signToken } from './auth/jwt.js';
 import type { Env } from './env.js';
 

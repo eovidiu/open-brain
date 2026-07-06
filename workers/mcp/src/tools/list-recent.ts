@@ -1,5 +1,5 @@
 import type { Db } from 'open-brain-workers-shared';
-import { listRecentMemories } from '../db.js';
+import { listRecentMemories, type RecentMemory } from 'open-brain-workers-shared';
 
 function escapeXmlTags(text: string): string {
   return text.replace(/<\/?memory_content>/g, (match) => match.replace(/</g, '&lt;').replace(/>/g, '&gt;'));

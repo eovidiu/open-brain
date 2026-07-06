@@ -40,3 +40,41 @@ export interface RetryEligibleMemory {
   captured_at: string;
   raw_text: string;
 }
+
+export interface SearchResult {
+  id: string;
+  raw_text: string;
+  captured_at: string;
+  source: MemorySource;
+  metadata: MemoryMetadata;
+  metadata_status: MetadataStatus;
+  embedding_status: EmbeddingStatus;
+  similarity_score: number;
+}
+
+export interface RecentMemory {
+  id: string;
+  raw_text: string;
+  metadata: MemoryMetadata;
+  metadata_status: MetadataStatus;
+  captured_at: string;
+  source: MemorySource;
+}
+
+export interface StatsResponse {
+  total_memories: number;
+  last_7_days: number;
+  last_30_days: number;
+  by_type: Record<string, number>;
+  by_embedding_status: Record<EmbeddingStatus, number>;
+  embedding_model: string;
+  top_topics: Array<{ topic: string; count: number }>;
+}
+
+export interface SystemConfig {
+  id: number;
+  embedding_model: string;
+  embedding_dimensions: number;
+  created_at: string;
+  updated_at: string;
+}

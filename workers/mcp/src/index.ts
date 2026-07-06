@@ -5,12 +5,12 @@
 //   *    (else)       requires a valid Bearer JWT, then delegates to the MCP
 //                      protocol handler (createMcpHandler)
 import { createMcpHandler } from 'agents/mcp';
-import { createDb } from 'open-brain-workers-shared';
+import { createDb, getSystemConfig } from 'open-brain-workers-shared';
 import type { Env } from './env.js';
 import { createServer } from './server.js';
 import { createAuthRateLimiter, createCaptureRateLimiter } from './auth/rate-limiter.js';
 import { signToken, verifyToken } from './auth/jwt.js';
-import { getSystemConfig } from './db.js';
+
 
 const authRateLimiter = createAuthRateLimiter();
 const captureRateLimiter = createCaptureRateLimiter();

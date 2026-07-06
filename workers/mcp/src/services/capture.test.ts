@@ -1,23 +1,18 @@
-import type { CaptureResult } from 'open-brain-workers-shared';
-import type { CaptureMetadata } from '../types.js';
+import type { CaptureResult, ExtractedMetadata } from 'open-brain-workers-shared';
 
-vi.mock('./embedding.js', () => ({ fetchEmbedding: vi.fn() }));
-vi.mock('./metadata.js', () => ({ extractMetadata: vi.fn() }));
 vi.mock('open-brain-workers-shared', async () => {
   const actual = await vi.importActual<typeof import('open-brain-workers-shared')>('open-brain-workers-shared');
-  return { ...actual, insertMemory: vi.fn() };
+  return { ...actual, insertMemory: vi.fn(), fetchEmbedding: vi.fn(), extractMetadata: vi.fn() };
 });
 
 import { captureMemory, CaptureValidationError, DbWriteError } from './capture.js';
-import { fetchEmbedding } from './embedding.js';
-import { extractMetadata } from './metadata.js';
-import { insertMemory } from 'open-brain-workers-shared';
+import { extractMetadata, fetchEmbedding, insertMemory } from 'open-brain-workers-shared';
 
 const mockFetchEmbedding = vi.mocked(fetchEmbedding);
 const mockExtractMetadata = vi.mocked(extractMetadata);
 const mockInsertMemory = vi.mocked(insertMemory);
 
-const GOOD_METADATA: CaptureMetadata = {
+const GOOD_METADATA: ExtractedMetadata = {
   type: 'insight',
   topics: ['testing'],
   people: [],
@@ -46,7 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'error').mockImplementation(() => {});
   mockFetchEmbedding.mockResolvedValue(FAKE_EMBEDDING);
-  mockExtractMetadata.mockResolvedValue({ metadata: GOOD_METADATA, status: 'ready' });
+  mockExtractMetadata.mockResolvedValue(GOOD_METADATA);
   mockInsertMemory.mockImplementation(async (_sql, record) =>
     makeCaptureResult({
       id: record.id,
@@ -110,7 +105,7 @@ describe('captureMemory', () => {
   });
 
   it('returns pending embedding_status when embedding fails', async () => {
-    mockFetchEmbedding.mockResolvedValue(null);
+    mockFetchEmbedding.mockRejectedValue(new Error('OpenAI embedding API 500'));
 
     const result = await captureMemory(FAKE_SQL, 'test text', undefined, FAKE_CONFIG);
 
@@ -121,11 +116,8 @@ describe('captureMemory', () => {
     expect(result.embedding_status).toBe('pending');
   });
 
-  it('returns degraded metadata_status when metadata extraction reports degraded', async () => {
-    mockExtractMetadata.mockResolvedValue({
-      metadata: { type: 'unknown', topics: [], people: [], action_items: [], confidence: 0, truncated: false },
-      status: 'degraded',
-    });
+  it('returns degraded metadata_status when metadata extraction fails', async () => {
+    mockExtractMetadata.mockRejectedValue(new Error('metadata provider unavailable'));
 
     const result = await captureMemory(FAKE_SQL, 'test text', undefined, FAKE_CONFIG);
 

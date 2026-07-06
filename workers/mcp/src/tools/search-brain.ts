@@ -1,7 +1,9 @@
-import type { Db } from 'open-brain-workers-shared';
-import { fetchEmbedding } from '../services/embedding.js';
-import { searchMemories } from '../db.js';
-import type { SearchResult } from '../types.js';
+import {
+  fetchEmbedding,
+  searchMemories,
+  type Db,
+  type SearchResult,
+} from 'open-brain-workers-shared';
 
 function escapeXmlTags(text: string): string {
   return text.replace(/<\/?memory_content>/g, (match) => match.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
@@ -15,9 +17,6 @@ export async function handleSearchBrain(
   const n = Math.min(Math.max(params.n ?? 10, 1), 50);
 
   const queryVector = await fetchEmbedding(params.query, embeddingApiKey);
-  if (!queryVector) {
-    throw new Error('Failed to generate embedding for search query');
-  }
 
   const results = await searchMemories(sql, queryVector, n, params.filter_type, params.since);
 

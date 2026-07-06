@@ -1,11 +1,13 @@
-import type { SearchResult } from '../types.js';
+import type { SearchResult } from 'open-brain-workers-shared';
 
-vi.mock('../services/embedding.js', () => ({ fetchEmbedding: vi.fn() }));
-vi.mock('../db.js', () => ({ searchMemories: vi.fn() }));
+vi.mock('open-brain-workers-shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('open-brain-workers-shared')>();
+  return { ...actual, fetchEmbedding: vi.fn(), searchMemories: vi.fn() };
+});
 
 import { handleSearchBrain } from './search-brain.js';
-import { fetchEmbedding } from '../services/embedding.js';
-import { searchMemories } from '../db.js';
+import { fetchEmbedding } from 'open-brain-workers-shared';
+import { searchMemories } from 'open-brain-workers-shared';
 
 const mockFetchEmbedding = vi.mocked(fetchEmbedding);
 const mockSearchMemories = vi.mocked(searchMemories);
@@ -61,10 +63,11 @@ describe('handleSearchBrain', () => {
     expect(mockSearchMemories).toHaveBeenCalledWith(FAKE_SQL, FAKE_VECTOR, 10, 'decision', '2026-01-01');
   });
 
-  it('throws when embedding generation fails', async () => {
-    mockFetchEmbedding.mockResolvedValue(null);
+  it('propagates embedding failures without querying the database', async () => {
+    mockFetchEmbedding.mockRejectedValue(new Error('OpenAI embedding API 500'));
     await expect(handleSearchBrain(FAKE_SQL, 'sk-test', { query: 'test' })).rejects.toThrow(
-      'Failed to generate embedding for search query',
+      'OpenAI embedding API 500',
     );
+    expect(mockSearchMemories).not.toHaveBeenCalled();
   });
 });
