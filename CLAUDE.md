@@ -1,18 +1,22 @@
 # open-brain
 
-Personal, vendor-neutral, agent-readable knowledge system. Captures thoughts via an HTTP
-endpoint, stores them in Postgres + pgvector with LLM-generated embeddings and metadata,
-and exposes retrieval through an MCP server (stdio + SSE).
+Personal, vendor-neutral, agent-readable knowledge system. Captures thoughts via a
+Cloudflare Worker HTTP endpoint, stores them in Neon Postgres + pgvector with
+LLM-generated embeddings and metadata, and exposes retrieval through MCP hosts
+(local stdio for Claude Desktop; remote Streamable HTTP Worker for everything else).
 
-The authoritative specification is `../open-brain-spec.md` (v1.0.0-MVP). Prime Rule: the
-spec is versioned in git and changed via pull request; verbal amendments have no standing.
+The authoritative specification is `docs/open-brain-spec.md` (v1.2.0). Prime Rule: the
+spec is versioned in git and changed via pull request; verbal amendments have no
+standing. Architecture description (C4): `docs/architecture.md`.
 
 ## Tech Stack
 
-- TypeScript, Node.js (ESM), npm workspaces: `mcp-server/` and `cli/`
-- Vitest for tests (`npm test` at root runs the mcp-server suite)
-- Backend: Supabase (Postgres + pgvector, edge functions) — **migration to Neon.tech
-  serverless Postgres + Cloudflare Workers is planned**; see `.harness/features.json`
+- TypeScript, Node.js (ESM); npm workspaces `mcp-server/` + `cli/`; standalone
+  packages `workers/{shared,capture,retry,mcp}` (each with its own lockfile)
+- Vitest for tests (`npm test` at root runs the mcp-server suite; each workers
+  package has its own suite)
+- Backend: Neon serverless Postgres (pgvector, plain SQL via @neondatabase/serverless)
+  + Cloudflare Workers (capture endpoint, retry cron, remote MCP) — all deployed and live
 - Embeddings/metadata: OpenAI + Anthropic APIs (keys via env, never committed)
 
 ## Commands

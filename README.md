@@ -30,7 +30,7 @@ Claude Desktop (stdio)        Any MCP Client (Streamable HTTP)
 - **Capture Worker** — HTTP endpoint for saving thoughts (JWT HS256 or HMAC-signed webhooks)
 - **Retry Worker** — cron-driven; finishes embedding/metadata for degraded captures
 - **MCP Worker** — remote MCP server over Streamable HTTP with JWT auth (`/auth/token`)
-- **mcp-server** — local stdio MCP server for Claude Desktop (same four tools)
+- **mcp-server** — local stdio MCP server for Claude Desktop (same five tools)
 
 ## Setup
 
@@ -88,7 +88,7 @@ Tokens come from `POST /auth/token` with `{"client_secret": "<MCP_CLIENT_SECRET 
 
 ## What can it do?
 
-Once connected, your AI assistant gets four tools:
+Once connected, your AI assistant gets five tools:
 
 | Tool | What it does | Example prompt |
 |------|-------------|----------------|
@@ -96,6 +96,7 @@ Once connected, your AI assistant gets four tools:
 | `search_brain` | Search your memories by meaning | *"What did I decide about the database?"* |
 | `list_recent` | See your latest memories | *"Show me my recent notes"* |
 | `get_stats` | See stats about your knowledge base | *"How many memories do I have?"* |
+| `delete_memory` | Permanently delete one memory by its exact id | *"Find that note about X… now delete it"* |
 
 Memories are automatically categorized into types: `decision`, `insight`, `person_note`, `meeting_debrief`, `task`, `reference`, `note`, `meeting_note`.
 
@@ -111,6 +112,7 @@ Memories are automatically categorized into types: `decision`, `insight`, `perso
 
 ## Docs
 
+- [docs/architecture.md](docs/architecture.md) — full architecture description (C4 model: context, containers, components, data model)
 - [docs/deploy.md](docs/deploy.md) — deployment reference (Workers, secrets, migrations)
 - [docs/open-brain-spec.md](docs/open-brain-spec.md) — system specification (authoritative; amended via PR only)
 - [docs/neon-provisioning-runbook.md](docs/neon-provisioning-runbook.md) — Neon project provisioning
