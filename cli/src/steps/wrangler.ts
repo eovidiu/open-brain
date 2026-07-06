@@ -18,6 +18,8 @@ export const WORKERS: WorkerSpec[] = [
   {
     dir: 'workers/capture',
     name: 'open-brain-capture',
+    // METADATA_LLM_PROVIDER is a [vars] binding in this worker's wrangler.toml;
+    // uploading it as a secret collides (Cloudflare code 10053).
     secrets: [
       'DATABASE_URL',
       'CAPTURE_JWT_SECRET',
@@ -25,7 +27,6 @@ export const WORKERS: WorkerSpec[] = [
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',
       'OPENAI_METADATA_API_KEY',
-      'METADATA_LLM_PROVIDER',
     ],
     urlEnvKey: 'CAPTURE_WORKER_URL',
   },
@@ -43,6 +44,8 @@ export const WORKERS: WorkerSpec[] = [
   {
     dir: 'workers/mcp',
     name: 'open-brain-mcp',
+    // METADATA_LLM_PROVIDER and EMBEDDING_MODEL are [vars] bindings in this
+    // worker's wrangler.toml; uploading them as secrets collides (code 10053).
     secrets: [
       'DATABASE_URL',
       'MCP_CLIENT_SECRET',
@@ -50,8 +53,6 @@ export const WORKERS: WorkerSpec[] = [
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',
       'OPENAI_METADATA_API_KEY',
-      'METADATA_LLM_PROVIDER',
-      'EMBEDDING_MODEL',
     ],
     urlEnvKey: 'MCP_WORKER_URL',
   },

@@ -47,8 +47,12 @@ Set per Worker with `npx wrangler secret put <NAME>` (run in the Worker's direct
 | `OPENAI_API_KEY` | yes | yes | yes |
 | `ANTHROPIC_API_KEY` | optional | optional | optional |
 | `OPENAI_METADATA_API_KEY` | optional | optional | optional |
-| `METADATA_LLM_PROVIDER` | optional | optional | optional |
-| `EMBEDDING_MODEL` | — | — | optional |
+| `METADATA_LLM_PROVIDER` | via `[vars]` | optional secret | via `[vars]` |
+| `EMBEDDING_MODEL` | — | — | via `[vars]` |
+
+`via [vars]` means the value is a plain-text binding in that worker's
+`wrangler.toml`, not a secret — running `wrangler secret put` for such a name
+fails with Cloudflare error 10053 (binding name already in use).
 
 ## Endpoints
 

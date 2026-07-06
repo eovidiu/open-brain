@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import * as ui from '../ui.js';
-import { saveEnv } from '../env.js';
+import { loadEnv, saveEnv } from '../env.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
 const REQUIRED_KEYS = [
@@ -18,7 +19,11 @@ export const writeEnvStep: SetupStep = {
 
   async isComplete(_state: SetupState, env: EnvFile): Promise<boolean> {
     if (!fs.existsSync(env.filePath)) return false;
-    return REQUIRED_KEYS.every((key) => !!env.values[key]);
+    // Judge completeness by what is IN THE FILE, not by values collected in
+    // memory during this run — otherwise a stale .env plus a freshly pasted
+    // value reports "already complete" and the write is silently skipped.
+    const onDisk = loadEnv(path.dirname(env.filePath));
+    return REQUIRED_KEYS.every((key) => !!onDisk.values[key]);
   },
 
   async run(_state: SetupState, env: EnvFile): Promise<StepResult> {
