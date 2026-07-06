@@ -9,6 +9,8 @@ vi.mock('../ui.js', () => ({
   error: vi.fn(),
   success: vi.fn(),
   warn: vi.fn(),
+  confirm: vi.fn(),
+  isCancel: vi.fn((v: unknown) => typeof v === 'symbol'),
 }));
 
 import { writeEnvStep } from './write-env.js';
@@ -82,6 +84,62 @@ describe('writeEnvStep', () => {
 
     expect(result.status).toBe('done');
     expect(uiModule.warn).toHaveBeenCalledWith(expect.stringContaining('.gitignore'));
+  });
+
+  it('writes without prompting when no .env exists', async () => {
+    const uiModule = await import('../ui.js');
+    const env = makeEnv(FULL_VALUES);
+
+    const result = await writeEnvStep.run(makeState(), env);
+
+    expect(result.status).toBe('done');
+    expect(uiModule.confirm).not.toHaveBeenCalled();
+  });
+
+  it('asks before overwriting an existing .env and writes on yes', async () => {
+    const uiModule = await import('../ui.js');
+    fs.writeFileSync(path.join(tmpDir, '.env'), 'PREEXISTING=1\n');
+    vi.mocked(uiModule.confirm).mockResolvedValueOnce(true);
+    const env = makeEnv(FULL_VALUES);
+
+    const result = await writeEnvStep.run(makeState(), env);
+
+    expect(result.status).toBe('done');
+    expect(uiModule.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ initialValue: false })
+    );
+    const content = fs.readFileSync(env.filePath, 'utf-8');
+    expect(content).toContain('DATABASE_URL=');
+    expect(content).not.toContain('PREEXISTING');
+  });
+
+  it('halts and leaves the file byte-identical when the user declines', async () => {
+    const uiModule = await import('../ui.js');
+    const original = 'PREEXISTING=1\n# do not touch\n';
+    fs.writeFileSync(path.join(tmpDir, '.env'), original);
+    vi.mocked(uiModule.confirm).mockResolvedValueOnce(false);
+    const env = makeEnv(FULL_VALUES);
+
+    const result = await writeEnvStep.run(makeState(), env);
+
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') {
+      expect(result.error).toMatch(/\.env/);
+    }
+    expect(fs.readFileSync(env.filePath, 'utf-8')).toBe(original);
+  });
+
+  it('treats a cancelled prompt as decline (file untouched)', async () => {
+    const uiModule = await import('../ui.js');
+    const original = 'PREEXISTING=1\n';
+    fs.writeFileSync(path.join(tmpDir, '.env'), original);
+    vi.mocked(uiModule.confirm).mockResolvedValueOnce(Symbol('cancel') as unknown as boolean);
+    const env = makeEnv(FULL_VALUES);
+
+    const result = await writeEnvStep.run(makeState(), env);
+
+    expect(result.status).not.toBe('done');
+    expect(fs.readFileSync(env.filePath, 'utf-8')).toBe(original);
   });
 
   it('isComplete requires the file plus every required key', async () => {

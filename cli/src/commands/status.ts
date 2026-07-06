@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import * as ui from '../ui.js';
 import { loadEnv, hasEnvVar } from '../env.js';
+import { repoRoot } from '../paths.js';
 
 const REQUIRED_VARS = [
   'DATABASE_URL',
@@ -12,7 +13,7 @@ const REQUIRED_VARS = [
 ];
 
 export async function runStatus(): Promise<void> {
-  const env = loadEnv(process.cwd());
+  const env = loadEnv(repoRoot());
 
   ui.info('Checking Open Brain status...\n');
 

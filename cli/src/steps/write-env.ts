@@ -28,6 +28,22 @@ export const writeEnvStep: SetupStep = {
       return { status: 'failed', error: `Missing env vars: ${missing.join(', ')}`, retriable: false };
     }
 
+    if (fs.existsSync(env.filePath)) {
+      ui.warn(`.env already exists at ${env.filePath}`);
+      const overwrite = await ui.confirm({
+        message: 'Overwrite it with the values collected in this run?',
+        initialValue: false,
+      });
+      if (ui.isCancel(overwrite) || !overwrite) {
+        ui.info('Kept the existing .env untouched.');
+        return {
+          status: 'failed',
+          error: 'Existing .env kept — accept the overwrite or remove the file, then re-run setup',
+          retriable: true,
+        };
+      }
+    }
+
     // Set default embedding model if not already set
     if (!env.values['EMBEDDING_MODEL']) {
       env.values['EMBEDDING_MODEL'] = 'text-embedding-3-small';

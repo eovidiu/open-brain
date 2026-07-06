@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import * as ui from '../ui.js';
+import { repoRoot } from '../paths.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
 export const claudeDesktopStep: SetupStep = {
@@ -27,8 +28,7 @@ export const claudeDesktopStep: SetupStep = {
     }
 
     // Determine absolute path to the MCP server
-    const projectRoot = path.resolve(process.cwd());
-    const mpcServerPath = path.join(projectRoot, 'mcp-server', 'dist', 'index.js');
+    const mpcServerPath = path.join(repoRoot(), 'mcp-server', 'dist', 'index.js');
 
     // Build the server entry (stdio transport needs the DB and LLM keys only)
     const serverEntry = {

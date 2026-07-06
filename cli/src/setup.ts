@@ -1,6 +1,7 @@
 import * as ui from './ui.js';
 import { loadState, saveState, markStepComplete } from './state.js';
 import { loadEnv } from './env.js';
+import { repoRoot } from './paths.js';
 import type { SetupStep } from './types.js';
 
 import { neonStep } from './steps/neon.js';
@@ -25,7 +26,7 @@ const steps: SetupStep[] = [
 
 export async function runSetup(): Promise<void> {
   const state = loadState();
-  const env = loadEnv(process.cwd());
+  const env = loadEnv(repoRoot());
   const totalSteps = steps.length;
 
   let failed = false;
