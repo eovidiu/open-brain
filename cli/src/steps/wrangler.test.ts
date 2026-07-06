@@ -59,6 +59,17 @@ describe('wranglerStep', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
   });
 
+  it('never uploads names that are wrangler.toml [vars] bindings', () => {
+    // Regression: Cloudflare rejects `secret put` for a name already bound as
+    // a plain var (code 10053). METADATA_LLM_PROVIDER is a var on capture and
+    // mcp; EMBEDDING_MODEL is a var on mcp. Retry has no [vars] and keeps
+    // METADATA_LLM_PROVIDER as a real secret.
+    expect(WORKERS[0].secrets).not.toContain('METADATA_LLM_PROVIDER');
+    expect(WORKERS[2].secrets).not.toContain('METADATA_LLM_PROVIDER');
+    expect(WORKERS[2].secrets).not.toContain('EMBEDDING_MODEL');
+    expect(WORKERS[1].secrets).toContain('METADATA_LLM_PROVIDER');
+  });
+
   it('defines the three workers with their required secrets', () => {
     const dirs = WORKERS.map((w) => w.dir);
     expect(dirs).toEqual(['workers/capture', 'workers/retry', 'workers/mcp']);

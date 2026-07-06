@@ -148,4 +148,13 @@ describe('writeEnvStep', () => {
     await writeEnvStep.run(makeState(), env);
     expect(await writeEnvStep.isComplete(makeState(), env)).toBe(true);
   });
+
+  it('isComplete is false when the file on disk lacks required keys, even if in-memory values are complete', async () => {
+    // Regression: a stale .env plus values collected earlier in the run made
+    // the step report "already complete" and skip the write entirely.
+    fs.writeFileSync(path.join(tmpDir, '.env'), 'OPENAI_API_KEY=sk-old\n');
+    const env = makeEnv(FULL_VALUES); // in-memory has everything
+
+    expect(await writeEnvStep.isComplete(makeState(), env)).toBe(false);
+  });
 });
