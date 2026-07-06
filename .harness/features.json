@@ -354,6 +354,31 @@
       "notes": "No HTTP delete on capture Worker per FR-DEL-04. stdio needs no deploy (local dist rebuilt).",
       "failure_reason": null,
       "spec": null
+    },
+    {
+      "id": "F012",
+      "description": "CLI robustness after the misfired .env refresh: (1) resolve the repo root from the CLI package location so the wizard behaves identically however it is launched (npm --workspace sets cwd to cli/, which made the wizard read/write cli/.env and miss scripts/migrate.sh); (2) never silently overwrite an existing .env \u2014 if the file exists when the write step runs, ask the user to confirm overwrite; on decline, halt and leave the file untouched (no automatic backup/rename). ACCEPTANCE: wizard run via npm run dev --workspace=cli reads/writes the repo-root .env and finds migrations; write step prompts on existing .env, declining halts with the file byte-identical; suites green, coverage >=95% on touched code.",
+      "priority": 8,
+      "status": "passing",
+      "scope": [
+        "cli/src/",
+        ".gitignore"
+      ],
+      "depends_on": [
+        "F007"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [
+        "Root cause reproduced from Ovidiu's transcript: npm run --workspace sets cwd to the package dir, so every process.cwd() anchor (env/state/migrations/workers/mcp-server path) pointed at cli/. Fix: repoRoot() from import.meta.url, wired into all six anchor sites, tests mock ./paths.js. Overwrite guard per Ovidiu's explicit design: confirm prompt (default no); decline/cancel -> retriable failure, file byte-identical (asserted in test). Discriminating live check: status command run via npm --workspace now reports the ROOT .env's missing DATABASE_URL, not the stray cli/.env that has one."
+      ],
+      "discovered_via": "F007",
+      "assigned_to": null,
+      "test_file": "cli/src/paths.test.ts, write-env.test.ts overwrite-guard tests, state.test.ts repoRoot anchoring (cli suite 67 tests)",
+      "coverage": 98,
+      "notes": "Stray cli/.env + cli/.openbrain-setup.json left for Ovidiu to delete (his call on .env files). Personal-use scope: repoRoot assumes a repo checkout, not an npm-installed package.",
+      "failure_reason": null,
+      "spec": null
     }
   ]
 }

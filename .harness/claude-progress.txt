@@ -158,3 +158,16 @@
 - Remaining backlog: BI-002 edit memory, BI-003 events, custom domain,
   permanent Supabase delete, Ovidiu's .env refresh (his 3-minute action)
 - Blockers: none
+
+## Session 5 (continued) - 2026-07-06 - F012 CLI launch-dir fix + .env guard
+- Feature: F012 (discovered_via F007, from Ovidiu's misfired .env refresh). PASSING.
+- Root cause: npm --workspace launches with cwd=cli/, so the wizard used
+  cli/.env and missed scripts/migrate.sh. Fixed with repoRoot() from module
+  location, wired into env/state/status/migrations/wrangler/claude-desktop.
+- New guard (Ovidiu's design): write-env asks before overwriting an existing
+  .env; decline/cancel halts with the file untouched. No auto-backup/rename.
+- Tests: cli 67 (was 61), all green; touched files 95.8-100% coverage
+- Ovidiu still to do: rm cli/.env cli/.openbrain-setup.json; then re-run
+  PATH="/opt/homebrew/opt/libpq/bin:$PATH" npm run dev --workspace=cli
+  (steps 2-4 skip, paste connection string, YES to the overwrite prompt)
+- Blockers: none
