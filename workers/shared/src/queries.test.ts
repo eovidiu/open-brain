@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MemoryMetadata } from './types.js';
 import type { Db } from './index.js';
-import { getStats, getSystemConfig, listRecentMemories, searchMemories } from './queries.js';
+import { getStats, getSystemConfig, listRecentMemories, searchMemories, deleteMemory } from './queries.js';
 
 const METADATA: MemoryMetadata = {
   type: 'insight',
@@ -165,5 +165,33 @@ describe('getSystemConfig', () => {
     const mockSql = makeMockSql([]);
 
     await expect(getSystemConfig(mockSql)).rejects.toThrow('Database operation failed');
+  });
+});
+
+describe('deleteMemory', () => {
+  it('deletes by id and returns the deleted id', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{ id: 'mem-1' }]);
+    const sql = mockSql as unknown as Db;
+
+    const result = await deleteMemory(sql, 'mem-1');
+
+    expect(sqlText(mockSql)).toContain('DELETE FROM memories');
+    expect(sqlText(mockSql)).toContain('RETURNING id');
+    expect(sqlParams(mockSql)).toEqual(['mem-1']);
+    expect(result).toEqual({ id: 'mem-1' });
+  });
+
+  it('throws an explicit not-found error when no row matches', async () => {
+    const mockSql = vi.fn().mockResolvedValue([]);
+    const sql = mockSql as unknown as Db;
+
+    await expect(deleteMemory(sql, 'missing-id')).rejects.toThrow('Memory not found: missing-id');
+  });
+
+  it('wraps driver errors with a sanitized message', async () => {
+    const mockSql = vi.fn().mockRejectedValue(new Error('connection refused'));
+    const sql = mockSql as unknown as Db;
+
+    await expect(deleteMemory(sql, 'mem-1')).rejects.toThrow('Database operation failed');
   });
 });
