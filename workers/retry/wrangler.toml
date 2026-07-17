@@ -5,7 +5,7 @@ compatibility_date = "2026-07-03"
 # No routes/HTTP triggers: this Worker is cron-only. fetch() rejects all requests.
 
 [triggers]
-crons = ["* * * * *"]
+crons = ["0 * * * *"]
 
 # Secrets (set via `wrangler secret put <NAME>`, never committed):
 #   DATABASE_URL            - Neon Postgres connection string
