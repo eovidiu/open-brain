@@ -18,8 +18,9 @@ This file is referenced in CLAUDE.md and loaded every session.
   at current volume). OpenAI remains the fallback key. Retry worker keeps the
   OPENAI_METADATA_API_KEY secret (its selectCaller never falls back to
   OPENAI_API_KEY — divergence tracked in F010).
-  .env is STALE (still SUPABASE_* keys, no DATABASE_URL) — never modified per
-  the no-.env-edits rule; `openbrain setup` regenerates it.
+  .env defines DATABASE_URL and Ovidiu refreshed it to the current credential
+  (2026-08-09); other keys in it may still be stale. Never modified by an agent
+  per the no-.env-edits rule; `openbrain setup` regenerates it.
 - F010 DONE (2026-07-06): duplicated services consolidated into workers/shared
   (services.ts + queries.ts + db-util.ts, 13 files deleted); the retry
   key-fallback gap and mcp's 7-type/reject-validator divergence are gone by
@@ -32,6 +33,66 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
   branch production (5 migrations); test branch br-morning-morning-ab8igqsz
   gates integration tests via NEON_TEST_DATABASE_URL.
+- F013 CODE COMPLETE, NOT YET DEPLOYED (2026-08-08, branch f013-api-key-auth):
+  api_keys table (migration 006), workers/shared/src/api-keys.ts, the MCP
+  Worker's bearer gate, and `openbrain keys create|list|revoke`. /auth/token,
+  workers/mcp/src/auth/jwt.ts and MCP_CLIENT_SECRET are gone. All suites green
+  (379 tests); 100% coverage on the three touched files. Spec amended to v1.3.0
+  with ADR-007 (docs commit 1d98a65).
+  Migration 006 IS verified (2026-08-08): applied to a throwaway Neon branch cut
+  from production, then every query in api-keys.ts run against it — insert,
+  lookup by hash, touch, list, revoke, and the second revoke correctly returning
+  zero rows (which is what revokeApiKey relies on to throw). Constraints all
+  fire: malformed hash, uppercase hash, duplicate label, empty label. The
+  duplicate-label driver message really does contain "duplicate key value",
+  which is the string cli createKey matches. Verifying on Neon rather than the
+  pg17 container also caught a redundant index — see below.
+  MIGRATION 006 IS APPLIED TO PRODUCTION (2026-08-08, Ovidiu approved): branch
+  br-winter-waterfall-ab6aqifm now reports 6 migrations, api_keys present and
+  empty, memories still 7. The live (still-old-code) Worker kept serving
+  /health 200 afterwards, confirming the additive table broke nothing.
+  STILL OPEN: (1) `wrangler deploy` of workers/mcp -- the auto-mode classifier
+  blocks a production deploy even with Ovidiu's approval, so he runs it;
+  (2) delete the MCP Worker's now-unused MCP_CLIENT_SECRET and
+  CAPTURE_JWT_SECRET (credential revocation -- ask first per CLAUDE.md);
+  (3) live acceptance (a)-(f), where (a) needs an hour of wall clock.
+  BLOCKER for minting the first key: `openbrain keys` reads DATABASE_URL only
+  from .env via loadEnv(repoRoot()), and .env is STALE (no DATABASE_URL). There
+  is no process.env fallback, so the command cannot run until `openbrain setup`
+  regenerates .env. Offered Ovidiu a 2-line process.env fallback as an
+  alternative; not implemented unasked.
+  Design notes worth keeping: SHA-256 is unsalted and KDF-free on purpose (the
+  key is 256 CSPRNG bits, so a work factor would only tax every request);
+  the rate limiter gained blocked()/record() so only FAILED authentications
+  spend budget — a plain check() would lock a working client out after 5 good
+  requests; the CLI duplicates the hash rather than importing workers/shared,
+  because a file: dependency would order the shared build ahead of the CLI in
+  every root install, and both suites pin one vector so drift fails a test.
+- NEXT UP — F013 original plan (2026-08-08): replace the MCP Worker's
+  1-hour JWT with long-lived per-client API keys. Root problem: every MCP client
+  stores its server config in a static file, and a credential that expires in 60
+  minutes cannot live in one — so no client holds a durable connection. This is
+  a server-side design fault, not a client-config problem; a stdio proxy like
+  mcp-remote only hides it.
+  Research and decision: docs/mcp-client-auth-research.md. Static bearer is the
+  only mechanism with working documented config on all 9 client surfaces Ovidiu
+  uses, and MCP spec 2026-07-28 makes authorization OPTIONAL, so a static token
+  outside the OAuth chapter is spec-legal (Security Best Practices explicitly
+  lists "require an authorization token" as a valid HTTP-transport restriction).
+  Caveat carried forward: Claude Desktop and claude.ai accept static headers
+  ONLY via a gated Anthropic beta — their GA path is OAuth 2.1 + DCR, which is
+  F014 (backlog, build only if the beta is unavailable and those two surfaces
+  are wanted).
+  Ovidiu's decisions, 2026-08-08: (a) static key now, OAuth deferred; (b) keys in
+  an api_keys table in Neon, one per client, individually revocable — NOT a
+  single Worker secret, because revoking a lost machine must not force
+  reconfiguring the other eight; (c) commit inherited harness work first (done,
+  3e59b1d); (d) run the implementation from a session launched at the repo root
+  so .claude/settings.json hooks actually load.
+  F013 is elevated-risk with require_plan_approval: true — it is an auth change,
+  and the spec (docs/open-brain-spec.md) is authoritative and amended by PR only.
+  Nothing in code calls /auth/token; references are docs-only, so removal is
+  clean under replace-don't-deprecate.
 
 ## Cross-Cutting Concerns
 - Stack: TypeScript (Node.js ESM), npm workspaces (`mcp-server`, `cli`), Vitest
@@ -90,7 +151,37 @@ This file is referenced in CLAUDE.md and loaded every session.
   record atomically — a crash can never record an unapplied migration or apply an
   unrecorded one
 - Local DB testing: pgvector/pgvector:pg17 container (port 54329, password test) —
-  see header of scripts/migrate.test.sh for the docker run command
+  see header of scripts/migrate.test.sh for the docker run command. That
+  container tests the migrate.sh RUNNER (it needs DROP/CREATE DATABASE rights,
+  which Neon does not give). It is the WRONG tool for validating a migration's
+  SQL: the image is pg17 while production is Neon PG18, so it is both lower
+  fidelity and a different major version.
+  For validating a migration, branch Neon instead (Ovidiu, 2026-08-08): a
+  branch is a copy-on-write replica of real production schema on the real
+  engine. Use the Neon MCP tools (create_branch with an `expiresAt` so it
+  self-deletes, then run_sql/run_sql_transaction with the branchId) — they take
+  projectId/branchId and never surface a connection string, so no credential
+  lands in the transcript. Do NOT test a migration by making a differently
+  named copy of the table in the live branch: that exercises DDL you are not
+  shipping and pollutes production.
+  Note psql is NOT installed on this Mac and the docker daemon is not running by
+  default (the `docker` CLI resolves but OrbStack's socket is absent until
+  OrbStack starts, so the failure is a connect error, not a missing binary).
+- .claude/hooks/commit-gate.sh secret scan has no inline suppression. Its only
+  escape hatch is harness.json's `secret_scan_exempt_paths` (verbatim
+  repo-relative paths). It fires on `<name containing key/token/password>:
+  <value >= 16 chars>` in a STAGED ADDITION, so `key_hash: <64-hex>` in a test
+  fixture trips it — and workers/shared/src/api-keys.test.ts cannot avoid that,
+  since authenticateApiKey reads row.key_hash for its constant-time compare.
+  It also rejects any URL with embedded credentials, which the repo's own
+  existing test fixture idiom matches (the user:password@host form of a
+  postgres URL, as used in cli/src/commands/status.test.ts); use a
+  credential-free `postgresql://localhost/db` in new tests. Note this rule
+  also fires on a NOTE ABOUT the rule, so never quote the offending form. Editing harness.json to add an
+  exemption is blocked by the auto-mode classifier and needs Ovidiu.
+- workers/mcp/tsconfig.json EXCLUDES src/**/*.test.ts, so `tsc --noEmit` never
+  typechecks that package's tests; stale fixture fields survive silently until
+  vitest runs. Do not read a clean tsc there as "the tests typecheck".
 - Worker packages are standalone (own package.json/tsconfig/lockfile, NOT root
   workspaces): matches wrangler conventions and keeps 'builds standalone' literal.
   Siblings depend on workers/shared via file:../shared
@@ -151,6 +242,31 @@ This file is referenced in CLAUDE.md and loaded every session.
   deliverable; unit tests cannot see compat-flag or unresolved-import failures
 - Ports must be faithful by default; any added validation/behavior is a defect
   unless it implements a named carry-forward or approved deviation
+
+## Meta-Session 2026-07-20 (reconstructed 2026-08-08)
+
+Written retroactively to close the SESSION_INCOMPLETE gap. The 2026-07-20 session
+left no retrospective, no MLD file and no commit, so this is reconstructed from
+repository evidence only — it is not a first-hand account, and is marked as such
+rather than being fabricated in the usual voice.
+
+- Evidence available: the working tree carried an uncommitted vv-harness plugin
+  upgrade (3.5.0 -> 5.3.0) — two hooks rewritten, four new hook files, settings.json
+  rewired, harness.json reformatted, .gitignore extended. No source or test files
+  were touched. The last code commit before it was ca49153 (2026-07-17, retry cron
+  relaxed to hourly).
+- What that implies: the session was harness maintenance, not feature work, and it
+  ended without committing. Nothing was lost — the changes sat in the tree for
+  three weeks — but the tree was left dirty for the next session to inherit, which
+  is exactly the state CLAUDE.md's "commit inherited work as-is first" rule exists
+  to absorb. It worked: the 2026-08-08 session committed it unmodified as 3e59b1d.
+- Pattern worth carrying: a plugin/tooling upgrade is still a commit. Upgrades that
+  touch .claude/ and .harness/ should land as their own chore: commit at the moment
+  they are applied, because they are invisible in feature-level reasoning and will
+  otherwise be inherited as unexplained diff noise by a session that has no idea
+  what produced them.
+- Ablation note: the SESSION_INCOMPLETE mechanism did its job — it is the only
+  reason this gap was noticed three weeks later. Retain.
 
 ## Meta-Session 2026-07-06b (F011, single-session)
 - Scope vs plan: exactly as planned (spec-first, two db layers, two hosts,
@@ -262,3 +378,43 @@ This file is referenced in CLAUDE.md and loaded every session.
   tests against a dedicated Neon branch worked well for all DB features.
 - Plan approval: lightweight plan + Go-ahead sufficed for verified-spec infra
   features; no rework anywhere.
+
+## Meta-Session 2026-08-08 (F013, single-session)
+- Scope accuracy: F013's declared scope held with one deliberate exclusion.
+  Removing /auth/token orphaned the capture Worker's JWT verify path (its only
+  issuer), but workers/capture/ was not in scope, so it was filed as F015 rather
+  than absorbed. Lesson: a feature that REMOVES a producer should grep for its
+  consumers at scoping time — the same lesson F002 produced for dependency
+  removal in 2026-07-03, now seen twice.
+- Model calibration: 0 correction cycles, single-session, default model. An auth
+  rewrite across four packages did not need an upgrade; the spec was detailed
+  enough to implement directly.
+- Discovery lineage: F015 (capture's unissued JWT path). Also surfaced two
+  environment facts that cost real time and are now in Patterns: no psql and no
+  running docker daemon on this Mac, and the commit-gate secret scan's lack of
+  inline suppression.
+- Approach patterns: TDD red was observed for every unit (shared api-keys, the
+  Worker gate, the CLI command). Writing the failing test first paid off on the
+  rate limiter, where the test made it obvious that a single consuming check()
+  would lock out a working client after five successful requests.
+- Plan approval: worth it here. Presenting the plan surfaced the capture-JWT
+  orphan and the CLI/Worker hash-duplication question BEFORE implementation, and
+  both answers changed the work. Keep require_plan_approval on auth features.
+
+## Meta-Patterns
+- A control with no inline suppression forces an all-or-nothing exemption. When
+  a scanner false-positives on a test fixture that genuinely cannot be written
+  another way, the choice collapses to "exempt the whole file" or "make the test
+  worse" — three consecutive workarounds degraded the CLI test before stopping.
+  Stop after the second workaround and take the decision to the owner. (backlog)
+- Prefer verifying an environment prerequisite (daemon running, binary present)
+  at the point the plan is written, not at the point the command runs. The
+  migration was authored, reviewed and committed-adjacent before discovering it
+  could not be executed at all. (backlog)
+- Match the test environment to the DEPLOYMENT, not to whatever the repo's docs
+  happen to mention. The local pg17 container was reached for out of habit
+  (migrate.test.sh documents it) even though production is Neon PG18 and the
+  project already branches Neon for integration tests. Ovidiu caught it. Running
+  on a Neon branch immediately surfaced a redundant index that the container
+  would also have shown but that nobody would have looked for. Ask "is this the
+  same engine as production?" before picking a test target. (backlog)

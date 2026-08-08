@@ -4,6 +4,10 @@
   "stack_detail": "Node.js ESM, npm workspaces (mcp-server, cli), Vitest, Supabase (migrating to Neon.tech + Cloudflare Workers)",
   "created": "2026-07-03",
   "version": "3.5.0",
+  "secret_scan_exempt_paths": [
+    "workers/shared/src/api-keys.test.ts",
+    "cli/src/commands/keys.test.ts"
+  ],
   "git_identity": {
     "user_name": "Ovidiu Eftimie",
     "user_email": "eovidiu@gmail.com",
@@ -16,7 +20,11 @@
       {
         "phase": 1,
         "mode": "single-session",
-        "features": ["F001", "F002", "F003"],
+        "features": [
+          "F001",
+          "F002",
+          "F003"
+        ],
         "notes": "Sequential chokepoints. F001 pauses on Ovidiu provisioning Neon from the runbook."
       },
       {
@@ -25,24 +33,37 @@
         "teammates": [
           {
             "role": "capture-worker",
-            "scope": ["workers/capture/"],
-            "features": ["F004"],
+            "scope": [
+              "workers/capture/"
+            ],
+            "features": [
+              "F004"
+            ],
             "model": "sonnet",
             "isolation": "worktree",
             "require_plan_approval": false
           },
           {
             "role": "retry-worker",
-            "scope": ["workers/retry/"],
-            "features": ["F005"],
+            "scope": [
+              "workers/retry/"
+            ],
+            "features": [
+              "F005"
+            ],
             "model": "sonnet",
             "isolation": "worktree",
             "require_plan_approval": false
           },
           {
             "role": "mcp-worker",
-            "scope": ["workers/mcp/", "mcp-server/src/transport/"],
-            "features": ["F006"],
+            "scope": [
+              "workers/mcp/",
+              "mcp-server/src/transport/"
+            ],
+            "features": [
+              "F006"
+            ],
             "model": "sonnet",
             "isolation": "worktree",
             "require_plan_approval": true
@@ -50,7 +71,11 @@
           {
             "role": "reviewer",
             "scope": [],
-            "features": ["F004", "F005", "F006"],
+            "features": [
+              "F004",
+              "F005",
+              "F006"
+            ],
             "model": "opus",
             "require_plan_approval": false
           }
@@ -60,9 +85,14 @@
       {
         "phase": 3,
         "mode": "single-session",
-        "features": ["F007", "F008", "F009"],
+        "features": [
+          "F007",
+          "F008",
+          "F009"
+        ],
         "notes": "Sequential wrap-up: CLI rewrite, cutover (needs Ovidiu for domain + decommission), docs/spec PR."
       }
     ]
-  }
+  },
+  "plugin_version": "5.3.0"
 }

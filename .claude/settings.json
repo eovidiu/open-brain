@@ -27,7 +27,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/enforce-scope.sh"
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/verify-git-identity.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/commit-gate.sh"
           }
         ]
       }
@@ -51,16 +59,25 @@
           }
         ]
       }
-    ],
-    "PostCompact": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Context was just compacted. Immediately re-read .harness/context_summary.md and run TaskList to recover your current state before continuing work. If this is the third or more compaction in rapid succession and you are losing context each time, STOP: write your current progress and known state to .harness/context_summary.md, message the lead with SendMessage({ type: 'message', recipient: 'team-lead', content: 'Context collapse: repeated compaction losing state. Current feature [ID] progress saved to context_summary.md. Need intervention.' }), then wait for instructions."
-          }
-        ]
-      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh"
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash .harness/init.sh*)",
+      "Bash(\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/*.sh*)",
+      "Bash(git config user.name)",
+      "Bash(git config user.email)",
+      "Bash(git rev-parse*)",
+      "Bash(git log*)",
+      "Bash(git status*)",
+      "Read(./.harness/**)"
     ]
   }
 }

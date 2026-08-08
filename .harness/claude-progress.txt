@@ -182,3 +182,67 @@
   (bin name only exists on global npm install).
 - System state: fully operational, .env current, nothing stale left except
   cli/.env + cli/.openbrain-setup.json (Ovidiu's rm, optional).
+
+## Session 6 - 2026-08-08 - F013 planned (auth rebuild), not started
+- Context: Ovidiu asked to connect Open Brain to 9 MCP client surfaces (Claude
+  Code CLI, Claude Desktop, claude.ai, Codex CLI, Codex desktop, Copilot CLI,
+  Copilot VS Code, Copilot JetBrains, Antigravity CLI). Attempting it exposed
+  that the MCP Worker's 1-hour JWT makes durable static client config impossible.
+- Research done and PERSISTED to docs/mcp-client-auth-research.md (client support
+  matrix, MCP spec analysis, decision, known gaps). Session scratchpad is not
+  durable - the doc is the record.
+- Decisions taken (Ovidiu, 2026-08-08): static long-lived API keys now (F013);
+  OAuth 2.1 + DCR deferred (F014, backlog); keys in an api_keys table in Neon,
+  one per client, individually revocable; inherited harness upgrade committed
+  first (3e59b1d); implementation to run from a repo-root-launched session.
+- F013 + F014 added to features.json. F013: priority 9, elevated risk,
+  require_plan_approval true, status pending.
+- SESSION_INCOMPLETE gap closed: Meta-Session 2026-07-20 written (reconstructed
+  from repo evidence, marked as such).
+- Tests: smoke_test green. No source files touched this session.
+- Next: launch a session FROM THE REPO ROOT (/Users/fameftimie/work/openBrain/
+  open-brain), run /harness-continue, implement F013 with TDD. Plan approval is
+  required before implementation - it is an auth change and the spec is
+  amended by PR only.
+- Blockers: none. Ovidiu holds a 1-hour JWT minted this session; it is
+  disposable and will be superseded by an API key.
+
+## Session 12 - 2026-08-08 (single-session, F013)
+- Feature: F013 - long-lived API keys replace the MCP Worker's 1-hour JWT
+- Status: code complete on branch f013-api-key-auth, NOT deployed, code commit
+  blocked (see Blockers)
+- Delivered: migration 006 (api_keys), workers/shared/src/api-keys.ts, the MCP
+  Worker bearer gate + rate limiting on /mcp, `openbrain keys create|list|revoke`,
+  removal of /auth/token + auth/jwt.ts + MCP_CLIENT_SECRET, spec v1.3.0 + ADR-007
+  and the architecture/deploy/README updates (docs committed as 1d98a65)
+- Tests: 379 passing across all six suites, 4 skipped (env-gated integration)
+- Coverage: 100% stmts/branch/func/lines on workers/shared/src/api-keys.ts,
+  workers/mcp/src/index.ts and cli/src/commands/keys.ts
+- Decisions: unsalted SHA-256 (256-bit CSPRNG key, a KDF would only tax every
+  request); rate limiter split into blocked()/record() so only failed auth spends
+  budget; CLI duplicates the hash rather than adding a file: dep on
+  workers/shared, with one vector pinned in both suites. Details in
+  context_summary.md.
+- Discovered: F015 filed - removing /auth/token orphaned the capture Worker's JWT
+  verify path (its only issuer). workers/capture/ was out of F013 scope, so it
+  was NOT touched.
+- Migration 006 VERIFIED (2026-08-08) on a disposable Neon branch cut from
+  production, after Ovidiu pointed out the local pg17 container was the wrong
+  target for a PG18 Neon deployment. Every query in api-keys.ts executed against
+  the real schema; all constraints fire. Caught and removed a redundant index
+  (UNIQUE (key_hash) already provides the lookup btree).
+- Next: (1) apply 006 to Neon production (needs Ovidiu - production schema change);
+  (4) deploy the MCP Worker and delete the MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET
+  secrets from it; (5) mint a key and run live acceptance (a)-(f), where (a)
+  needs a recheck more than an hour after the first successful call; (6) open PR.
+- PR: https://github.com/eovidiu/open-brain/pull/115 (open, do NOT merge before
+  migration 006 is executed and live acceptance (a)-(f) passes)
+- Resolved this session: the code commit tripped .claude/hooks/commit-gate.sh's secret scan on
+  `key_hash: <64-hex>` in workers/shared/src/api-keys.test.ts. That fixture is
+  load-bearing (authenticateApiKey reads row.key_hash for its constant-time
+  compare), the hook has no inline suppression, and adding the file to
+  harness.json's secret_scan_exempt_paths is blocked by the auto-mode classifier.
+  Ovidiu approved the exemption for both test files; committed as d87d85a.
+- Blockers: none blocking code. Remaining work needs Ovidiu's machine/account:
+  start OrbStack (migration test), apply 006 to Neon production, deploy + prune
+  the MCP Worker's stale secrets, then live acceptance.

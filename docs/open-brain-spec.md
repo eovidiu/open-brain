@@ -1,10 +1,10 @@
 # Open Brain: System Specification
 
-**Version**: 1.2.0  
+**Version**: 1.3.0  
 **Status**: Engineering-ready  
 **Owner**: Ovidiu  
-**Last Updated**: 2026-07-06  
-**Changelog**: 1.2.0 — delete capability (2026-07-06): `delete_memory` MCP tool added on both hosts (hard delete by exact id, owner-initiated only; closes BI-001); 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
+**Last Updated**: 2026-08-08  
+**Changelog**: 1.3.0 — MCP API keys (2026-08-08): the MCP Worker's 1-hour JWT and its `/auth/token` issuance endpoint are replaced by long-lived per-client API keys stored as SHA-256 in a new `api_keys` table, managed with `openbrain keys`; `MCP_CLIENT_SECRET` retired. The capture Worker's own JWT and HMAC auth (§9.2) are unchanged; 1.2.0 — delete capability (2026-07-06): `delete_memory` MCP tool added on both hosts (hard delete by exact id, owner-initiated only; closes BI-001); 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
 
 ---
 
@@ -87,7 +87,7 @@ Current AI platforms implement memory as a lock-in mechanism: each platform's me
 - Neon serverless PostgreSQL + pgvector storage
 - MCP access: four tools, local stdio server + remote MCP Worker (Streamable HTTP)
 - Async retry worker (Cloudflare Cron Trigger, no public HTTP route)
-- Token issuance endpoint (`/auth/token` on the MCP Worker)
+- Long-lived per-client API keys for the MCP Worker, managed from the CLI
 - Health check endpoint (`/health` on the MCP Worker)
 - `system_config` table (embedding model version tracking)
 
@@ -152,6 +152,22 @@ ALTER TABLE system_config ADD CONSTRAINT singleton CHECK (id = 1);
 ```
 
 The MCP server MUST read `system_config` at startup. If the configured embedding model does not match `system_config.embedding_model`, the server MUST refuse to start and log a human-readable error. **Fail-closed. Silent model drift is not acceptable.**
+
+#### `api_keys`
+
+One row per MCP client. Holds the SHA-256 of each key, never the key itself.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `uuid` | PK, not null, default `gen_random_uuid()` | |
+| `label` | `text` | Not null, unique, 1–100 chars | Names the client this key was issued to |
+| `key_hash` | `text` | Not null, unique, 64 lowercase hex chars | SHA-256 of the raw key. The uniqueness constraint supplies the btree every request's lookup uses, so no separate index is declared. Lowercase is enforced because the hash is only ever produced lowercase |
+| `created_at` | `timestamptz` | Not null, default `now()` | |
+| `last_used_at` | `timestamptz` | Nullable | Last successful authentication; `NULL` until first use |
+| `revoked_at` | `timestamptz` | Nullable | Set by revocation; a non-null value MUST reject the key |
+
+Keys carry no expiry: a client's stored configuration stays valid until the key
+is revoked. See §6.3 for the format and verification rules.
 
 ### 2.2 `Memory.metadata` Schema
 
@@ -388,7 +404,6 @@ graph TB
         K[list_recent]
         L[get_stats]
         M[capture_memory]
-        N[/auth/token]
         O[/health]
     end
 
@@ -422,8 +437,8 @@ graph TB
     StdioServer -.->|reads on startup| H
 
     U --> R
-    MCPWorker -->|Streamable HTTP + JWT Bearer| S
-    MCPWorker -->|Streamable HTTP + JWT Bearer| T
+    MCPWorker -->|Streamable HTTP + API key| S
+    MCPWorker -->|Streamable HTTP + API key| T
 ```
 
 ### 5.2 Component Responsibilities
@@ -455,8 +470,8 @@ graph TB
 #### MCP Worker (`open-brain-mcp`)
 
 - Exposes the four tools over stateless Streamable HTTP via the Cloudflare Agents SDK `createMcpHandler()`
-- Issues JWTs at `POST /auth/token`; serves `GET /health`
-- Requires a valid Bearer JWT on every MCP request
+- Serves `GET /health`
+- Requires a live API key as `Authorization: Bearer <key>` on every MCP request
 - Never caches results; always queries live DB
 
 #### Local MCP Server (stdio)
@@ -502,7 +517,7 @@ graph TB
 
 ```
 1.  AI client calls search_brain { query, n?, filter_type?, since?, wrap_output? }
-    via stdio (no auth) or the MCP Worker (Streamable HTTP, JWT Bearer)
+    via stdio (no auth) or the MCP Worker (Streamable HTTP, API key)
 
 2.  The serving component calls OpenAI text-embedding-3-small on query text → query_vector[1536]
 
@@ -740,48 +755,42 @@ Cloudflare Cron Trigger fires the retry Worker's scheduled() handler every 60 se
 
 **Output**: `{ "id": "<uuid>", "deleted": true }` on success. A non-existent `id` returns a tool error (`Memory not found: <uuid>`), never a silent success.
 
-### 6.3 Token Issuance Endpoint
+### 6.3 API Keys
 
-**POST** `/auth/token` on the MCP Worker  
-No authentication required (this is the issuance endpoint). The `client_secret`
-comparison MUST be constant-time.  
-Rate limit: 5 failed attempts per IP per 15 minutes.
+MCP clients authenticate with a long-lived key. There is no issuance endpoint:
+keys are minted out of band by the owner and pasted into a client's static
+configuration, which is what lets a configuration file keep working
+indefinitely.
 
-**Request:**
+**Storage.** The `api_keys` table holds `id`, a unique `label`, the key's
+SHA-256 as lowercase hex in `key_hash`, `created_at`, `last_used_at` and
+`revoked_at`. The raw key is never stored, never logged, and never returned
+after creation.
 
-```json
-{ "client_secret": "string, required" }
-```
+**Format.** `obk_` followed by 32 CSPRNG bytes, base64url-encoded without
+padding. The prefix makes the credential recognizable to secret scanners.
+SHA-256 is used unsalted and without a slow KDF: the key carries 256 bits of
+entropy, so brute force is infeasible and a work factor would only add latency
+to every MCP request.
 
-**Success — `200 OK`:**
+**Verification.** The Worker hashes the presented key, looks the row up by
+`key_hash`, and rejects it when no row matches, when `revoked_at` is set, or
+when the stored hash fails a constant-time comparison against the computed one.
+A rejected key returns the same `401` body whether it is unknown or revoked.
+On success `last_used_at` is updated outside the request's critical path.
 
-```json
-{
-  "token": "<hs256-signed-jwt>",
-  "expires_in": 3600,
-  "token_type": "Bearer"
-}
-```
-
-**JWT payload:**
-
-```json
-{
-  "sub": "open-brain-owner",
-  "iat": 1740916500,
-  "exp": 1740920100
-}
-```
-
-No additional claims. This is a session ticket, not an identity assertion.
+**Management.** `openbrain keys create <label>` mints a key and prints it
+exactly once; `openbrain keys list` shows label, creation, last use and status
+and never key material; `openbrain keys revoke <label>` stamps `revoked_at`,
+taking effect on the next request.
 
 **Error Responses:**
 
 | Status | Code | Condition |
 |--------|------|-----------|
-| `400` | `MISSING_SECRET` | `client_secret` field absent |
-| `401` | `UNAUTHORIZED` | Incorrect `client_secret`; response body MUST be `{"error":"Unauthorized"}` only |
-| `429` | `RATE_LIMITED` | ≥ 5 failed attempts from this IP in last 15 minutes |
+| `401` | `UNAUTHORIZED` | Header absent or malformed, or the key is unknown or revoked |
+| `429` | `RATE_LIMITED` | ≥ 5 failed authentications from this IP in last 15 minutes |
+| `503` | `SERVICE_UNAVAILABLE` | The key lookup could not reach the database |
 
 ### 6.4 Health Endpoint
 
@@ -807,16 +816,16 @@ The MCP Worker serves the MCP protocol over stateless Streamable HTTP
 
 ```http
 POST /mcp
-Authorization: Bearer <jwt>
+Authorization: Bearer <api-key>
 Content-Type: application/json
 Accept: application/json, text/event-stream
 ```
 
-Requests without a valid, non-expired JWT are rejected with `401` before any
-JSON-RPC processing. The transport is stateless: each request is independently
-authenticated and served by a fresh server instance; there is no long-lived
-stream to expire mid-session. When a JWT expires, the next request returns
-`401` and the client MUST re-authenticate via `/auth/token`.
+Requests without a live API key are rejected with `401` before any JSON-RPC
+processing. The transport is stateless: each request is independently
+authenticated and served by a fresh server instance. Keys do not expire, so a
+client's stored configuration stays valid until the key is revoked; revocation
+is the only thing that ends access, and it applies from the next request.
 
 ---
 
@@ -914,8 +923,7 @@ Security is fully implemented in MVP. No security items are deferred.
 | Capture Worker | HTTPS | HMAC-SHA256 (webhooks) or JWT Bearer (interactive clients) |
 | Retry Worker | none | No public HTTP route; cron-invoked only |
 | MCP Server — stdio | OS process | Ambient OS isolation; no network exposure |
-| MCP Worker — Streamable HTTP | HTTPS | JWT HS256 (WebCrypto), 1-hour expiry, via `/auth/token` |
-| `/auth/token` | HTTPS | Pre-shared `client_secret`, constant-time compare; rate limited |
+| MCP Worker — Streamable HTTP | HTTPS | Long-lived API key, SHA-256 stored, constant-time compare; rate limited |
 | `/health` | HTTPS | None (liveness probe; aggregate count only) |
 | Neon DB | TLS | Single least-privilege role; credentials held as Worker secrets |
 
@@ -946,16 +954,16 @@ All DB writes in the capture Worker MUST use the database credentials held as Wo
 
 ### 9.3 Remote MCP Authentication
 
-All MCP Worker requests MUST present a valid JWT. See §6.3 and §6.5 for full contract.
+All MCP Worker requests MUST present a live API key. See §6.3 and §6.5 for full contract.
 
-- JWT signed HS256 with `CAPTURE_JWT_SECRET` (256-bit random), implemented with WebCrypto (`crypto.subtle`)
-- Tokens with `alg` other than `HS256` (including `none`) MUST be rejected
-- 1-hour expiry; no silent refresh — an expired token gets `401` on the next request
-- Brute force on `/auth/token`: 5 failed attempts/IP/15 min → `429`
+- Key: `obk_` + 32 CSPRNG bytes base64url; only its SHA-256 is stored, computed with WebCrypto (`crypto.subtle`)
+- Lookup is by hash, followed by a constant-time comparison; unknown and revoked keys MUST be indistinguishable to the client
+- Keys do not expire. Revocation is the only way to end access, and applies from the next request
+- Brute force on `/mcp`: 5 failed authentications/IP/15 min → `429`, checked before the database is queried
 
 ### 9.4 Database Authorization
 
-No RLS (AD-3). Authorization is enforced entirely at the HTTP layer (capture auth §9.2, MCP JWT §9.3). The database has a single least-privilege login role whose credentials exist only as Cloudflare Worker secrets and in the owner's local configuration. Direct client database access is not supported in MVP; nothing besides the Workers and the owner's stdio server holds credentials.
+No RLS (AD-3). Authorization is enforced entirely at the HTTP layer (capture auth §9.2, MCP API keys §9.3). The database has a single least-privilege login role whose credentials exist only as Cloudflare Worker secrets and in the owner's local configuration. Direct client database access is not supported in MVP; nothing besides the Workers and the owner's stdio server holds credentials.
 
 ### 9.5 Data in Transit
 
@@ -976,7 +984,7 @@ No RLS (AD-3). Authorization is enforced entirely at the HTTP layer (capture aut
 |--------|-----------------|-----------------|
 | `CAPTURE_WEBHOOK_SECRET` | Capture Worker secret + webhook platform config | On suspected compromise |
 | `CAPTURE_JWT_SECRET` (JWT signing key) | Capture + MCP Worker secrets; owner's `.env` (gitignored) | On suspected compromise; every 90 days |
-| `MCP_CLIENT_SECRET` (for `/auth/token`) | MCP Worker secret; owner's `.env` (gitignored) | Every 90 days |
+| MCP API keys | `api_keys` table (SHA-256 only); raw key in each client's config | On suspected compromise, or when a client is retired |
 | `DATABASE_URL` (Neon credentials) | All three Worker secrets; Claude Desktop config (local) | On suspected compromise |
 | OpenAI embedding API key | All three Worker secrets; owner's `.env` | On suspected compromise |
 | LLM metadata extraction API key | Worker secrets | On suspected compromise |
@@ -993,7 +1001,7 @@ The MCP Worker is deployed on Cloudflare's edge:
 - TLS is terminated by Cloudflare with a valid certificate on the workers.dev route (custom domain optional)
 - No raw port is exposed; the Worker is reachable only via HTTPS
 - SHOULD implement IP allowlisting (e.g., Cloudflare WAF rules) if the set of remote agents is known and fixed
-- MUST log all auth attempts with: timestamp, IP, result — no JWT content or secret material in logs
+- MUST log all auth attempts with: timestamp, IP, result — no API key, key hash, or other secret material in logs
 
 ### 9.9 Threat Model
 
@@ -1002,9 +1010,9 @@ The MCP Worker is deployed on Cloudflare's edge:
 | Leaked `CAPTURE_WEBHOOK_SECRET` | Medium | Rotate; write access only, no read | Low |
 | Leaked `CAPTURE_JWT_SECRET` | Low | Gitignored `.env`; 90-day rotation | Low |
 | Leaked `DATABASE_URL` (Neon credentials) | Low | Never client-side; 2FA on Neon account | Medium — rotate immediately |
-| Leaked `MCP_CLIENT_SECRET` | Medium | 90-day rotation; password manager | Low |
-| Brute force `/auth/token` | Medium | 5 attempts/IP/15 min; `429` | Low |
-| JWT replay (stolen valid token) | Low | 1-hour expiry; TLS in transit | Low |
+| Leaked MCP API key | Medium | Per-client keys, so one revocation does not disturb the others; `last_used_at` surfaces unexpected use | Low |
+| Brute force `/mcp` | Medium | 5 failed attempts/IP/15 min; `429` before the DB is queried | Low |
+| Stolen API key replayed | Medium | TLS in transit; revocation applies from the next request. Keys do not expire, so revocation is the only cut-off | Medium |
 | SQL injection via tool input | Low | Parameterized queries only; no string concatenation into SQL | Negligible |
 | Prompt injection via `raw_text` (extraction) | Medium | Injection boundary in system prompt (§9.10) | Low |
 | Prompt injection via `raw_text` (retrieval) | Medium | `wrap_output` option; client-side responsibility (FR-SAFE-01) | Low |
@@ -1079,8 +1087,8 @@ MVP minimum viable observability:
 
 **Remote MCP clients cannot connect**
 1. Check `GET /health` on the MCP Worker; if erroring, check `npx wrangler tail` in `workers/mcp/`
-2. Verify the client's JWT has not expired; re-issue via `POST /auth/token`
-3. Verify `CAPTURE_JWT_SECRET`/`MCP_CLIENT_SECRET` Worker secrets have not been rotated without re-issuing client tokens
+2. Verify the client's API key is present and not revoked (`openbrain keys list`)
+3. Verify `CAPTURE_JWT_SECRET` has not been rotated without re-issuing the capture Worker's client tokens
 
 **`embedding_status = 'failed'` accumulating**
 1. Investigate OpenAI embedding API for outage or credit exhaustion
@@ -1102,7 +1110,7 @@ MVP minimum viable observability:
 ### 10.5 Log Redaction Rules
 
 - Logs MUST NOT include full `raw_text` content
-- Logs MUST NOT include secrets, API keys, or JWT payloads
+- Logs MUST NOT include secrets, API keys, key hashes, or JWT payloads
 - Logs MAY include: `id`, `source`, `embedding_status`, `metadata_status`, error codes, latency
 - `last_processing_error` MUST contain only a short error code or message; no request body content
 
@@ -1134,13 +1142,13 @@ MVP minimum viable observability:
 
 | Scenario | Expected |
 |----------|----------|
-| Valid `client_secret` | `200` with JWT |
+| Valid API key | request authenticated |
 | Missing `client_secret` | `400 MISSING_SECRET` |
 | Invalid `client_secret` | `401`; body = `{"error":"Unauthorized"}` only |
 | 5th+ failed attempt from same IP | `429` |
-| MCP request with valid JWT | JSON-RPC processed |
-| MCP request without JWT | `401` before any JSON-RPC processing |
-| MCP request with expired JWT | `401` |
+| MCP request with a live API key | JSON-RPC processed |
+| MCP request with no API key | `401` before any JSON-RPC processing |
+| MCP request with a revoked API key | `401`, byte-identical to the unknown-key response |
 | Token with `alg: none` or non-HS256 | `401` |
 
 ### 11.3 Invariant Tests
@@ -1163,8 +1171,8 @@ Run post-deployment. All steps MUST pass in sequence.
 3. Call `search_brain` with semantically related query → assert captured memory in top 3; `similarity_score > 0.80`
 4. Call `list_recent` → assert captured memory at position 1
 5. Call `get_stats` → assert `total_memories` incremented; `embedding_model = "text-embedding-3-small"`
-6. POST `/auth/token` with valid `client_secret` → assert `200`; valid JWT
-7. MCP initialize over Streamable HTTP with the JWT → assert handshake succeeds
+6. Mint a key with `openbrain keys create` → assert it is printed once
+7. MCP initialize over Streamable HTTP with that key → assert handshake succeeds, and still succeeds more than one hour later
 8. Call `capture_memory` via the MCP Worker → assert success; new `id` returned
 9. GET `/health` → assert `200`, `status: "ok"`, `db_connected: true`
 10. Seed a memory with `embedding_status="pending"`; wait for a cron cycle; assert `embedding_status="ready"`
@@ -1207,7 +1215,7 @@ Not required for MVP at personal use scale. If usage exceeds 100 captures/day, b
 
 ### ADR-003: MCP Transports — Both stdio and SSE in MVP
 
-**Status**: Amended 2026-07-04 — the SSE transport and its Express host are replaced by the MCP Worker serving stateless Streamable HTTP on Cloudflare (see changelog v1.1.0 and §6.5); stdio unchanged. Original decision below is retained as a historical record.  
+**Status**: Amended 2026-07-04 — the SSE transport and its Express host are replaced by the MCP Worker serving stateless Streamable HTTP on Cloudflare (see changelog v1.1.0 and §6.5); stdio unchanged. Amended again 2026-08-08 — the JWT and its `/auth/token` endpoint are superseded by the API keys of ADR-007. Original decision below is retained as a historical record.  
 **Date**: 2026-03-03
 
 **Decision**: Both stdio and SSE in MVP. SSE secured with JWT HS256, 1-hour expiry, issued by `/auth/token`.
@@ -1257,6 +1265,19 @@ Not required for MVP at personal use scale. If usage exceeds 100 captures/day, b
 
 ---
 
+### ADR-007: Remote MCP Authentication — Long-lived API Keys
+
+**Status**: Accepted  
+**Date**: 2026-08-08
+
+**Decision**: The MCP Worker authenticates clients with long-lived per-client API keys, stored as SHA-256 in the `api_keys` table. The 1-hour JWT of ADR-003 and its `/auth/token` issuance endpoint are removed rather than deprecated. OAuth 2.1 is deferred (see §14).
+
+**Rationale**: MCP clients hold their configuration in a static file. A credential that expires after an hour cannot be written into one, so no client stayed connected — the JWT was unusable for the system's actual clients, not merely inconvenient. The MCP specification revision of 2026-07-28 makes authorization OPTIONAL, so a static bearer token outside the OAuth chapter is specification-legal; client support for static headers was verified across nine surfaces before choosing it (`docs/mcp-client-auth-research.md`). Per-client keys also give per-client revocation, which a single shared secret could not.
+
+**Consequences**: Keys never expire, so revocation is the only cut-off and a leaked key stays valid until noticed — `last_used_at` exists to make unexpected use visible. Authentication now requires a database read on every MCP request, which is why the per-IP rate limit is checked first. `MCP_CLIENT_SECRET` is retired. Claude Desktop and claude.ai accept static headers only through a gated beta; reaching them on the GA path needs OAuth, tracked separately.
+
+---
+
 ## 13. Traceability
 
 | Requirement | Component | Notes |
@@ -1271,7 +1292,7 @@ Not required for MVP at personal use scale. If usage exceeds 100 captures/day, b
 | FR-MCP-02 (same rate limits via MCP) | MCP server routes through same capture pipeline | Closes bypass vector |
 | NFR cost (< $0.30/month) | ADR-001, ADR-002, ADR-006 | Validated at baseline |
 | SEC §9.2 (dual capture auth) | Capture Worker auth handler | ADR-005 |
-| SEC §9.3 (remote MCP JWT) | MCP Worker `/auth/token` + request guard | ADR-003 (as amended) |
+| SEC §9.3 (remote MCP API keys) | `api_keys` table + MCP Worker request guard | ADR-003 (superseded for transport auth) |
 | SEC §9.4 (HTTP-layer authorization) | Single least-privilege Neon role; Worker secrets | AD-3: no RLS; auth at the HTTP layer |
 | SEC §9.7 (secret management) | Cloudflare Worker secrets + gitignored `.env` | Each secret has a storage location and rotation trigger |
 | SEC §9.10 (prompt injection defense) | Metadata extraction prompt | Version-controlled artifact; PR required to change |

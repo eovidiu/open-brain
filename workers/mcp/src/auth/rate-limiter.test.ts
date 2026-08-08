@@ -51,6 +51,37 @@ describe('RateLimiter', () => {
   });
 });
 
+describe('blocked / record', () => {
+  it('blocked() does not consume budget', () => {
+    const limiter = new RateLimiter({ windowMs: 60_000, maxRequests: 1 });
+
+    expect(limiter.blocked('key').allowed).toBe(true);
+    expect(limiter.blocked('key').allowed).toBe(true);
+    expect(limiter.blocked('key').allowed).toBe(true);
+    // budget still untouched
+    expect(limiter.check('key').allowed).toBe(true);
+  });
+
+  it('record() consumes budget without reporting', () => {
+    const limiter = new RateLimiter({ windowMs: 60_000, maxRequests: 2 });
+
+    limiter.record('key');
+    limiter.record('key');
+
+    expect(limiter.blocked('key').allowed).toBe(false);
+  });
+
+  it('blocked() reports retryAfter once the budget is spent', () => {
+    const limiter = new RateLimiter({ windowMs: 60_000, maxRequests: 1 });
+
+    limiter.record('key');
+    const result = limiter.blocked('key');
+
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfter).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('createCaptureRateLimiter', () => {
   it('creates a limiter with 60 requests per 60s window', () => {
     const limiter = createCaptureRateLimiter();

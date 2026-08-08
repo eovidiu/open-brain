@@ -1,19 +1,26 @@
-// Stateless Streamable HTTP MCP host (AD-4), replacing the Express SSE host
-// removed from mcp-server/src/transport/. Routes:
-//   POST /auth/token  issues a Bearer JWT after a timing-safe client_secret check
-//   GET  /health      DB connectivity + embedding_model, same shape as sse.ts's
-//   *    (else)       requires a valid Bearer JWT, then delegates to the MCP
-//                      protocol handler (createMcpHandler)
+// Stateless Streamable HTTP MCP host (AD-4). Routes:
+//   GET  /health      DB connectivity + embedding_model
+//   *    (else)       requires a live API key in Authorization: Bearer, then
+//                      delegates to the MCP protocol handler (createMcpHandler)
+//
+// Clients hold a long-lived key issued by `openbrain keys create`, so a static
+// config file keeps working indefinitely. Failed authentications are charged
+// against a per-IP budget; successful ones cost nothing.
 import { createMcpHandler } from 'agents/mcp';
-import { createDb, getSystemConfig } from 'open-brain-workers-shared';
+import {
+  authenticateApiKey,
+  createDb,
+  getSystemConfig,
+  touchApiKey,
+} from 'open-brain-workers-shared';
 import type { Env } from './env.js';
 import { createServer } from './server.js';
 import { createAuthRateLimiter, createCaptureRateLimiter } from './auth/rate-limiter.js';
-import { signToken, verifyToken } from './auth/jwt.js';
-
 
 const authRateLimiter = createAuthRateLimiter();
 const captureRateLimiter = createCaptureRateLimiter();
+
+const BEARER_PREFIX = 'Bearer ';
 
 function jsonResponse(status: number, body: unknown, extra?: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
@@ -22,57 +29,10 @@ function jsonResponse(status: number, body: unknown, extra?: Record<string, stri
   });
 }
 
-// Web Crypto has no direct timing-safe-equal; compare byte-by-byte with a
-// branchless XOR accumulator (same technique as the historical
-// supabase/functions/open-brain-mcp/index.ts authenticate()).
-function timingSafeStringEqual(a: string, b: string): boolean {
-  const aBytes = new TextEncoder().encode(a);
-  const bBytes = new TextEncoder().encode(b);
-  if (aBytes.length !== bBytes.length) return false;
-  let diff = 0;
-  for (let i = 0; i < aBytes.length; i++) diff |= aBytes[i] ^ bBytes[i];
-  return diff === 0;
-}
-
-async function handleAuthToken(request: Request, env: Env): Promise<Response> {
-  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-
-  let body: { client_secret?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return jsonResponse(400, { error: 'MISSING_SECRET' });
-  }
-
-  const clientSecret = body.client_secret;
-  if (!clientSecret) {
-    return jsonResponse(400, { error: 'MISSING_SECRET' });
-  }
-
-  if (!env.MCP_CLIENT_SECRET) {
-    return jsonResponse(500, { error: 'Server misconfigured' });
-  }
-
-  // Rate limit check BEFORE secret validation (brute force defense).
-  const rateCheck = authRateLimiter.check(ip);
-  if (!rateCheck.allowed) {
-    return jsonResponse(
-      429,
-      { error: 'RATE_LIMITED' },
-      rateCheck.retryAfter ? { 'Retry-After': String(rateCheck.retryAfter) } : undefined,
-    );
-  }
-
-  if (!timingSafeStringEqual(clientSecret, env.MCP_CLIENT_SECRET)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
-  if (!env.CAPTURE_JWT_SECRET) {
-    return jsonResponse(500, { error: 'Server misconfigured' });
-  }
-
-  const tokenResponse = await signToken(env.CAPTURE_JWT_SECRET);
-  return jsonResponse(200, tokenResponse);
+function presentedKey(request: Request): string {
+  const header = request.headers.get('Authorization');
+  if (!header?.startsWith(BEARER_PREFIX)) return '';
+  return header.slice(BEARER_PREFIX.length).trim();
 }
 
 async function handleHealth(env: Env): Promise<Response> {
@@ -98,29 +58,50 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === '/auth/token' && request.method === 'POST') {
-      return handleAuthToken(request, env);
-    }
-
     if (url.pathname === '/health' && request.method === 'GET') {
       return handleHealth(env);
     }
 
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return jsonResponse(401, { error: 'UNAUTHORIZED' });
+    // Removed in F013 along with the JWT it issued; clients use API keys.
+    if (url.pathname === '/auth/token') {
+      return jsonResponse(404, { error: 'NOT_FOUND' });
     }
 
-    if (!env.CAPTURE_JWT_SECRET) {
-      return jsonResponse(500, { error: 'Server misconfigured' });
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+
+    // Checked before the key lookup so a flood never reaches the database.
+    const rateCheck = authRateLimiter.blocked(ip);
+    if (!rateCheck.allowed) {
+      return jsonResponse(429, { error: 'RATE_LIMITED' }, {
+        'Retry-After': String(rateCheck.retryAfter),
+      });
     }
 
-    const decoded = await verifyToken(authHeader.slice(7), env.CAPTURE_JWT_SECRET);
-    if (!decoded) {
+    const key = presentedKey(request);
+    if (!key) {
+      authRateLimiter.record(ip);
       return jsonResponse(401, { error: 'UNAUTHORIZED' });
     }
 
     const sql = createDb(env.DATABASE_URL);
+
+    let apiKey;
+    try {
+      apiKey = await authenticateApiKey(sql, key);
+    } catch {
+      // authenticateApiKey already logged a sanitized message; the raw key is
+      // never part of it.
+      return jsonResponse(503, { error: 'SERVICE_UNAVAILABLE' });
+    }
+
+    // Unknown and revoked keys are indistinguishable to the client.
+    if (!apiKey) {
+      authRateLimiter.record(ip);
+      return jsonResponse(401, { error: 'UNAUTHORIZED' });
+    }
+
+    ctx.waitUntil(touchApiKey(sql, apiKey.id));
+
     const server = createServer({ sql, env, captureLimiter: captureRateLimiter });
     return createMcpHandler(server)(request, env, ctx);
   },

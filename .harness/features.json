@@ -1,8 +1,8 @@
 {
   "project": "open-brain",
   "created": "2026-07-03",
-  "total_features": 9,
-  "passing": 3,
+  "total_features": 14,
+  "passing": 12,
   "features": [
     {
       "id": "F001",
@@ -380,6 +380,112 @@
       "notes": "Verified by Ovidiu's successful end-to-end run 2026-07-06 (overwrite prompt fired and was accepted; .env rewritten; all Workers deployed clean). Outro text corrected to the repo-launch command. Stray cli/.env cleanup remains his call.",
       "failure_reason": null,
       "spec": null
+    },
+    {
+      "id": "F013",
+      "description": "Replace the 1-hour JWT on the remote MCP Worker with long-lived, per-client API keys, so every MCP client can hold a durable static configuration. Today POST /auth/token issues a JWT with TOKEN_EXPIRY_SECONDS=3600 (workers/mcp/src/auth/jwt.ts:8) and workers/mcp/src/index.ts:109-118 requires it on every request; a credential that dies in 60 minutes cannot be written into any client's static config file, so no client stays connected. (1) New migration db/migrations/006_create_api_keys.sql: api_keys table with id uuid PK, label text NOT NULL UNIQUE, key_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(), last_used_at timestamptz NULL, revoked_at timestamptz NULL; index on key_hash. (2) Worker accepts Authorization: Bearer <raw-key>, SHA-256 hashes the presented key via WebCrypto, looks it up by hash, rejects when absent or revoked_at IS NOT NULL, and updates last_used_at on success. Comparison must be constant-time; the raw key is never logged, never returned after creation, and never appears in an error body. (3) Rate limiting extended to /mcp itself (rate-limiter.ts currently guards only /auth/token). (4) CLI gains key management so the feature is usable without hand-written SQL: create (prints the raw key exactly once), list (label, created, last used, revoked - never the key or hash), and revoke by label. (5) POST /auth/token and the JWT path are REMOVED, not deprecated - nothing in code calls them (verified: references exist only in README.md and docs/). (6) docs/open-brain-spec.md amended by PR: the API section, the transport/auth row of the security table, the threat table, the credential-rotation table and the test plan all currently specify JWT HS256 with 1-hour expiry and must reflect API-key auth. architecture.md, deploy.md and README.md updated to match. ACCEPTANCE: (a) a key minted by the CLI authenticates a real MCP request against the deployed Worker and still works more than one hour later; (b) a revoked key returns 401 and a valid key for a different label still succeeds; (c) an absent or malformed Authorization header returns 401 with no key material in the response; (d) /auth/token no longer exists and returns 404; (e) repeated unauthenticated requests to /mcp are rate limited; (f) the raw key appears in no log line, error body or list output; (g) all suites green, coverage >=95% on touched code; (h) spec amendment merged in the same PR series.",
+      "priority": 9,
+      "status": "in-progress",
+      "scope": [
+        "db/migrations/",
+        "workers/shared/src/",
+        "workers/mcp/src/",
+        "cli/src/",
+        "docs/open-brain-spec.md",
+        "docs/architecture.md",
+        "docs/deploy.md",
+        "README.md"
+      ],
+      "depends_on": [],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [
+        "Static bearer API keys, SHA-256 stored, looked up by hash then compared constant-time. Unsalted and no KDF: 256 bits of CSPRNG entropy makes brute force infeasible, and a work factor would add latency to every MCP request.",
+        "Rate limiting split into a non-consuming blocked() and a consuming record() so only failed authentications spend budget. A single check() would have locked out a working client after 5 successful requests.",
+        "CLI hashing duplicated rather than importing workers/shared: a file: dependency would put the shared build ahead of the CLI in every root install. Both suites pin the same vector so drift fails a test.",
+        "Migration 006 verified on a disposable Neon branch cut from production (PG18, same engine), not the local pgvector pg17 container. Ovidiu's correction. Running it there caught a redundant index: UNIQUE (key_hash) already creates the btree the planner uses, so the explicit CREATE INDEX was dropped -- identical plan and cost without it."
+      ],
+      "discovered_via": "F006",
+      "assigned_to": "single-session",
+      "test_file": "workers/shared/src/api-keys.test.ts (24), workers/mcp/src/index.test.ts (22) + auth/rate-limiter.test.ts (10), cli/src/commands/keys.test.ts (20)",
+      "coverage": "100% stmts/branch/func/lines on the three touched files (workers/shared/src/api-keys.ts, workers/mcp/src/index.ts, cli/src/commands/keys.ts)",
+      "notes": "Decision and evidence base: docs/mcp-client-auth-research.md (2026-08-08). Static bearer chosen over OAuth 2.1 after verifying client support across 9 surfaces; MCP spec 2026-07-28 makes authorization OPTIONAL, so a static token outside the OAuth chapter is spec-legal. OAuth deferred to F014.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "elevated",
+      "require_plan_approval": true,
+      "proof": {
+        "evidence_type": "live-acceptance",
+        "artifact": "deployed Worker version e5987862, Neon branch br-winter-waterfall-ab6aqifm",
+        "verified": [
+          "(b) revoked key 401, other label 200",
+          "(c) absent/malformed/unknown auth 401, body is {\"error\":\"UNAUTHORIZED\"} only",
+          "(d) /auth/token 404 on GET and POST",
+          "(e) repeated unauthenticated /mcp 429 with Retry-After 888",
+          "(f) listing shows no raw key and no hash; 401 bodies carry no key material",
+          "(a) partial: MCP initialize succeeded over an API key; last_used_at recorded via waitUntil"
+        ],
+        "not_established": [
+          "(a) full: 'still works more than one hour later' - first successful use 2026-08-08T21:32:46Z, recheck due after 22:33Z",
+          "(f) log lines: covered by unit tests and code inspection, not by a live wrangler tail",
+          "(h) spec amendment merged - PR #115 still open"
+        ]
+      }
+    },
+    {
+      "id": "F014",
+      "description": "Add MCP-spec OAuth 2.1 authorization to the MCP Worker so Claude Desktop and claude.ai - the two surfaces that accept static headers only through a gated Anthropic beta - can connect on their GA path. Requires: RFC 9728 protected-resource metadata at /.well-known/oauth-protected-resource, RFC 8414 authorization-server metadata, RFC 7591 dynamic client registration, authorization-code flow with PKCE S256, issuer mix-up validation per the 2026-07-28 spec revision, a consent screen, and token storage. Coexists with F013's API keys - does not replace them, since OAuth is unverified on Copilot CLI and JetBrains. ACCEPTANCE: Claude Desktop and claude.ai both connect via the Connectors UI with no beta enrolment; F013 API-key auth continues to work unchanged; suites green, coverage >=95% on touched code; spec amended by PR.",
+      "priority": 3,
+      "status": "pending",
+      "scope": [
+        "workers/mcp/src/",
+        "db/migrations/",
+        "docs/open-brain-spec.md"
+      ],
+      "depends_on": [
+        "F013"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F013",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": "Backlog. Only worth building if Ovidiu wants Claude Desktop / claude.ai and Anthropic has not granted static-header beta access. See docs/mcp-client-auth-research.md sections 1 and 4.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "elevated",
+      "require_plan_approval": true
+    },
+    {
+      "id": "F015",
+      "description": "Decide what happens to the capture Worker's now-unissued JWT auth path. workers/capture/src/auth.ts:126-146 accepts Authorization: Bearer <JWT> verified with CAPTURE_JWT_SECRET and subject open-brain-owner (auth.ts:7,63). Its only issuer was the MCP Worker's POST /auth/token, which F013 removed, so the branch still verifies but nothing can mint a token for it; only the HMAC path (X-OpenBrain-Signature) is reachable in practice. Two options: (a) move the capture endpoint onto the same api_keys table F013 introduced, giving one credential model across both Workers; (b) delete the JWT branch and keep capture HMAC-only, retiring CAPTURE_JWT_SECRET. ACCEPTANCE: the chosen option implemented with tests; no auth path remains that cannot be exercised by a credential the owner can actually obtain; spec section 9.2 and ADR-005 amended by PR to match.",
+      "priority": 4,
+      "status": "pending",
+      "scope": [
+        "workers/capture/",
+        "workers/shared/src/",
+        "cli/src/",
+        "docs/open-brain-spec.md",
+        "docs/architecture.md",
+        "docs/deploy.md"
+      ],
+      "depends_on": [
+        "F013"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F013",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": "Found while removing /auth/token for F013. Deliberately left out of F013's scope, which does not include workers/capture/. Not urgent: capture still authenticates via HMAC, so nothing is broken, but a verify path with no issuer is dead weight that reads as working.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "standard",
+      "require_plan_approval": false
     }
   ]
 }

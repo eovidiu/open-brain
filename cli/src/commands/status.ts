@@ -9,7 +9,6 @@ const REQUIRED_VARS = [
   'ANTHROPIC_API_KEY',
   'CAPTURE_WEBHOOK_SECRET',
   'CAPTURE_JWT_SECRET',
-  'MCP_CLIENT_SECRET',
 ];
 
 export async function runStatus(): Promise<void> {

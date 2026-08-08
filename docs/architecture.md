@@ -71,7 +71,7 @@ flowchart TB
     subgraph cloudflare ["Cloudflare Workers (account eovidiu)"]
         capture["Capture Worker\n[open-brain-capture]\nHTTPS intake for thoughts.\nJWT HS256 or HMAC auth."]
         retry["Retry Worker\n[open-brain-retry-worker]\nCron janitor, every minute.\nNo public HTTP route."]
-        mcpw["MCP Worker\n[open-brain-mcp]\nRemote MCP over Streamable HTTP.\nJWT auth via /auth/token."]
+        mcpw["MCP Worker\n[open-brain-mcp]\nRemote MCP over Streamable HTTP.\nLong-lived API-key auth."]
     end
 
     subgraph mac ["Owner's machine"]
@@ -132,11 +132,11 @@ flowchart TB
 - **Purpose**: the remote MCP host — any Streamable-HTTP-capable MCP client can use
   the owner's memory from anywhere.
 - **Routes**:
-  - `POST /auth/token` — exchanges `{"client_secret": …}` (constant-time compared
-    against `MCP_CLIENT_SECRET`) for a 1-hour HS256 JWT. Rate-limited to 5 failed
-    attempts per IP per 15 minutes.
   - `GET /health` — DB connectivity + embedding model + memory count.
-  - everything else — requires `Authorization: Bearer <JWT>`, then hands the request
+  - everything else — requires `Authorization: Bearer <api-key>`, looked up by
+    SHA-256 against the `api_keys` table. Failed authentications are rate-limited
+    to 5 per IP per 15 minutes, checked before the database is queried; successful
+    ones cost no budget. Then hands the request
     to a **per-request** MCP server instance via the Cloudflare Agents SDK's
     `createMcpHandler()` (stateless by design, AD-4; the SDK requires the
     `nodejs_compat` flag and an alias stub for its unused `ai` import).
@@ -247,9 +247,9 @@ flowchart LR
 
 | Component | File | Responsibility |
 |---|---|---|
-| Router | `src/index.ts` | `/auth/token`, `/health`, JWT gate, per-request `createMcpHandler()` |
-| JWT | `src/auth/jwt.ts` | WebCrypto HS256 sign/verify, 1 h expiry, `alg:none` rejected |
-| Rate limiter | `src/auth/rate-limiter.ts` | token-issuance 5/15 min; capture-tool 60/min |
+| Router | `src/index.ts` | `/health`, API-key gate, per-request `createMcpHandler()` |
+| API keys | `workers/shared/src/api-keys.ts` | WebCrypto SHA-256, lookup by hash, constant-time compare, revocation |
+| Rate limiter | `src/auth/rate-limiter.ts` | failed MCP auth 5/15 min; capture-tool 60/min |
 | Tool host | `src/server.ts` | registers the five tools; maps errors to stable envelopes (`NOT_FOUND`, `DELETE_FAILED`, `RATE_LIMITED`, …) |
 | Tools | `src/tools/*.ts` | thin handlers over `workers/shared` |
 
@@ -328,9 +328,8 @@ be set; deletion is allowed from any state.)
 | Name | capture | retry | mcp | stdio (Desktop config) | Kind |
 |---|---|---|---|---|---|
 | `DATABASE_URL` | secret | secret | secret | env | Neon pooled connection string |
-| `CAPTURE_JWT_SECRET` | secret | — | secret | — | HS256 signing key (shared: capture verifies, mcp issues) |
+| `CAPTURE_JWT_SECRET` | secret | — | — | — | HS256 signing key for the capture Worker's Bearer auth |
 | `CAPTURE_WEBHOOK_SECRET` | secret | — | — | — | HMAC key |
-| `MCP_CLIENT_SECRET` | — | — | secret | — | token-issuance shared secret |
 | `OPENAI_API_KEY` | secret | secret | secret | env | embeddings + metadata fallback |
 | `ANTHROPIC_API_KEY` | secret | secret | secret | env | primary metadata |
 | `METADATA_LLM_PROVIDER` | **wrangler var** | secret | **wrangler var** | env (defaults anthropic) | `anthropic` everywhere today |
