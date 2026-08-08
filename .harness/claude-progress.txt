@@ -206,3 +206,35 @@
   amended by PR only.
 - Blockers: none. Ovidiu holds a 1-hour JWT minted this session; it is
   disposable and will be superseded by an API key.
+
+## Session 12 - 2026-08-08 (single-session, F013)
+- Feature: F013 - long-lived API keys replace the MCP Worker's 1-hour JWT
+- Status: code complete on branch f013-api-key-auth, NOT deployed, code commit
+  blocked (see Blockers)
+- Delivered: migration 006 (api_keys), workers/shared/src/api-keys.ts, the MCP
+  Worker bearer gate + rate limiting on /mcp, `openbrain keys create|list|revoke`,
+  removal of /auth/token + auth/jwt.ts + MCP_CLIENT_SECRET, spec v1.3.0 + ADR-007
+  and the architecture/deploy/README updates (docs committed as 1d98a65)
+- Tests: 379 passing across all six suites, 4 skipped (env-gated integration)
+- Coverage: 100% stmts/branch/func/lines on workers/shared/src/api-keys.ts,
+  workers/mcp/src/index.ts and cli/src/commands/keys.ts
+- Decisions: unsalted SHA-256 (256-bit CSPRNG key, a KDF would only tax every
+  request); rate limiter split into blocked()/record() so only failed auth spends
+  budget; CLI duplicates the hash rather than adding a file: dep on
+  workers/shared, with one vector pinned in both suites. Details in
+  context_summary.md.
+- Discovered: F015 filed - removing /auth/token orphaned the capture Worker's JWT
+  verify path (its only issuer). workers/capture/ was out of F013 scope, so it
+  was NOT touched.
+- Next: (1) start OrbStack and run scripts/migrate.test.sh to actually execute
+  migration 006; (2) resolve the commit-gate blocker below and commit the code;
+  (3) apply 006 to Neon production (needs Ovidiu - production schema change);
+  (4) deploy the MCP Worker and delete the MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET
+  secrets from it; (5) mint a key and run live acceptance (a)-(f), where (a)
+  needs a recheck more than an hour after the first successful call; (6) open PR.
+- Blockers: the code commit trips .claude/hooks/commit-gate.sh's secret scan on
+  `key_hash: <64-hex>` in workers/shared/src/api-keys.test.ts. That fixture is
+  load-bearing (authenticateApiKey reads row.key_hash for its constant-time
+  compare), the hook has no inline suppression, and adding the file to
+  harness.json's secret_scan_exempt_paths is blocked by the auto-mode classifier.
+  Needs Ovidiu's call: approve the exemption, or accept a weaker test.

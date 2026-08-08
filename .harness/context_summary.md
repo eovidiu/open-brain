@@ -32,7 +32,25 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
   branch production (5 migrations); test branch br-morning-morning-ab8igqsz
   gates integration tests via NEON_TEST_DATABASE_URL.
-- NEXT UP — F013 (2026-08-08, planned, not started): replace the MCP Worker's
+- F013 CODE COMPLETE, NOT YET DEPLOYED (2026-08-08, branch f013-api-key-auth):
+  api_keys table (migration 006), workers/shared/src/api-keys.ts, the MCP
+  Worker's bearer gate, and `openbrain keys create|list|revoke`. /auth/token,
+  workers/mcp/src/auth/jwt.ts and MCP_CLIENT_SECRET are gone. All suites green
+  (379 tests); 100% coverage on the three touched files. Spec amended to v1.3.0
+  with ADR-007 (docs commit 1d98a65).
+  STILL OPEN, in order: (1) migration 006 has never been executed — OrbStack's
+  daemon was down, so the pgvector container test could not run; (2) the code
+  commit is blocked by the commit-gate secret scan, see the gotcha below;
+  (3) live acceptance (a)-(f) needs deploy + `wrangler secret` work from Ovidiu,
+  and (a) "still works more than one hour later" needs an hour of wall clock.
+  Design notes worth keeping: SHA-256 is unsalted and KDF-free on purpose (the
+  key is 256 CSPRNG bits, so a work factor would only tax every request);
+  the rate limiter gained blocked()/record() so only FAILED authentications
+  spend budget — a plain check() would lock a working client out after 5 good
+  requests; the CLI duplicates the hash rather than importing workers/shared,
+  because a file: dependency would order the shared build ahead of the CLI in
+  every root install, and both suites pin one vector so drift fails a test.
+- NEXT UP — F013 original plan (2026-08-08): replace the MCP Worker's
   1-hour JWT with long-lived per-client API keys. Root problem: every MCP client
   stores its server config in a static file, and a credential that expires in 60
   minutes cannot live in one — so no client holds a durable connection. This is
@@ -115,7 +133,27 @@ This file is referenced in CLAUDE.md and loaded every session.
   record atomically — a crash can never record an unapplied migration or apply an
   unrecorded one
 - Local DB testing: pgvector/pgvector:pg17 container (port 54329, password test) —
-  see header of scripts/migrate.test.sh for the docker run command
+  see header of scripts/migrate.test.sh for the docker run command. psql is NOT
+  installed on this Mac and neither is a running docker daemon by default: the
+  `docker` CLI resolves but OrbStack's socket
+  (~/.orbstack/run/docker.sock) is absent until OrbStack is started, and the
+  failure is a connect error, not a missing binary. Start OrbStack before any
+  migration work, or the migration ships unexecuted (F013, 2026-08-08).
+- .claude/hooks/commit-gate.sh secret scan has no inline suppression. Its only
+  escape hatch is harness.json's `secret_scan_exempt_paths` (verbatim
+  repo-relative paths). It fires on `<name containing key/token/password>:
+  <value >= 16 chars>` in a STAGED ADDITION, so `key_hash: <64-hex>` in a test
+  fixture trips it — and workers/shared/src/api-keys.test.ts cannot avoid that,
+  since authenticateApiKey reads row.key_hash for its constant-time compare.
+  It also rejects any URL with embedded credentials, which the repo's own
+  existing test fixture idiom matches (the user:password@host form of a
+  postgres URL, as used in cli/src/commands/status.test.ts); use a
+  credential-free `postgresql://localhost/db` in new tests. Note this rule
+  also fires on a NOTE ABOUT the rule, so never quote the offending form. Editing harness.json to add an
+  exemption is blocked by the auto-mode classifier and needs Ovidiu.
+- workers/mcp/tsconfig.json EXCLUDES src/**/*.test.ts, so `tsc --noEmit` never
+  typechecks that package's tests; stale fixture fields survive silently until
+  vitest runs. Do not read a clean tsc there as "the tests typecheck".
 - Worker packages are standalone (own package.json/tsconfig/lockfile, NOT root
   workspaces): matches wrangler conventions and keeps 'builds standalone' literal.
   Siblings depend on workers/shared via file:../shared
@@ -312,3 +350,36 @@ rather than being fabricated in the usual voice.
   tests against a dedicated Neon branch worked well for all DB features.
 - Plan approval: lightweight plan + Go-ahead sufficed for verified-spec infra
   features; no rework anywhere.
+
+## Meta-Session 2026-08-08 (F013, single-session)
+- Scope accuracy: F013's declared scope held with one deliberate exclusion.
+  Removing /auth/token orphaned the capture Worker's JWT verify path (its only
+  issuer), but workers/capture/ was not in scope, so it was filed as F015 rather
+  than absorbed. Lesson: a feature that REMOVES a producer should grep for its
+  consumers at scoping time — the same lesson F002 produced for dependency
+  removal in 2026-07-03, now seen twice.
+- Model calibration: 0 correction cycles, single-session, default model. An auth
+  rewrite across four packages did not need an upgrade; the spec was detailed
+  enough to implement directly.
+- Discovery lineage: F015 (capture's unissued JWT path). Also surfaced two
+  environment facts that cost real time and are now in Patterns: no psql and no
+  running docker daemon on this Mac, and the commit-gate secret scan's lack of
+  inline suppression.
+- Approach patterns: TDD red was observed for every unit (shared api-keys, the
+  Worker gate, the CLI command). Writing the failing test first paid off on the
+  rate limiter, where the test made it obvious that a single consuming check()
+  would lock out a working client after five successful requests.
+- Plan approval: worth it here. Presenting the plan surfaced the capture-JWT
+  orphan and the CLI/Worker hash-duplication question BEFORE implementation, and
+  both answers changed the work. Keep require_plan_approval on auth features.
+
+## Meta-Patterns
+- A control with no inline suppression forces an all-or-nothing exemption. When
+  a scanner false-positives on a test fixture that genuinely cannot be written
+  another way, the choice collapses to "exempt the whole file" or "make the test
+  worse" — three consecutive workarounds degraded the CLI test before stopping.
+  Stop after the second workaround and take the decision to the owner. (backlog)
+- Prefer verifying an environment prerequisite (daemon running, binary present)
+  at the point the plan is written, not at the point the command runs. The
+  migration was authored, reviewed and committed-adjacent before discovering it
+  could not be executed at all. (backlog)
