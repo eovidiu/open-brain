@@ -38,11 +38,18 @@ This file is referenced in CLAUDE.md and loaded every session.
   workers/mcp/src/auth/jwt.ts and MCP_CLIENT_SECRET are gone. All suites green
   (379 tests); 100% coverage on the three touched files. Spec amended to v1.3.0
   with ADR-007 (docs commit 1d98a65).
-  STILL OPEN, in order: (1) migration 006 has never been executed — OrbStack's
-  daemon was down, so the pgvector container test could not run; (2) the code
-  commit is blocked by the commit-gate secret scan, see the gotcha below;
-  (3) live acceptance (a)-(f) needs deploy + `wrangler secret` work from Ovidiu,
-  and (a) "still works more than one hour later" needs an hour of wall clock.
+  Migration 006 IS verified (2026-08-08): applied to a throwaway Neon branch cut
+  from production, then every query in api-keys.ts run against it — insert,
+  lookup by hash, touch, list, revoke, and the second revoke correctly returning
+  zero rows (which is what revokeApiKey relies on to throw). Constraints all
+  fire: malformed hash, uppercase hash, duplicate label, empty label. The
+  duplicate-label driver message really does contain "duplicate key value",
+  which is the string cli createKey matches. Verifying on Neon rather than the
+  pg17 container also caught a redundant index — see below.
+  STILL OPEN: (1) apply 006 to Neon PRODUCTION (Ovidiu — production schema
+  change); (2) deploy the MCP Worker and delete its now-unused
+  MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET secrets; (3) live acceptance (a)-(f),
+  where (a) "still works more than one hour later" needs an hour of wall clock.
   Design notes worth keeping: SHA-256 is unsalted and KDF-free on purpose (the
   key is 256 CSPRNG bits, so a work factor would only tax every request);
   the rate limiter gained blocked()/record() so only FAILED authentications
@@ -133,12 +140,22 @@ This file is referenced in CLAUDE.md and loaded every session.
   record atomically — a crash can never record an unapplied migration or apply an
   unrecorded one
 - Local DB testing: pgvector/pgvector:pg17 container (port 54329, password test) —
-  see header of scripts/migrate.test.sh for the docker run command. psql is NOT
-  installed on this Mac and neither is a running docker daemon by default: the
-  `docker` CLI resolves but OrbStack's socket
-  (~/.orbstack/run/docker.sock) is absent until OrbStack is started, and the
-  failure is a connect error, not a missing binary. Start OrbStack before any
-  migration work, or the migration ships unexecuted (F013, 2026-08-08).
+  see header of scripts/migrate.test.sh for the docker run command. That
+  container tests the migrate.sh RUNNER (it needs DROP/CREATE DATABASE rights,
+  which Neon does not give). It is the WRONG tool for validating a migration's
+  SQL: the image is pg17 while production is Neon PG18, so it is both lower
+  fidelity and a different major version.
+  For validating a migration, branch Neon instead (Ovidiu, 2026-08-08): a
+  branch is a copy-on-write replica of real production schema on the real
+  engine. Use the Neon MCP tools (create_branch with an `expiresAt` so it
+  self-deletes, then run_sql/run_sql_transaction with the branchId) — they take
+  projectId/branchId and never surface a connection string, so no credential
+  lands in the transcript. Do NOT test a migration by making a differently
+  named copy of the table in the live branch: that exercises DDL you are not
+  shipping and pollutes production.
+  Note psql is NOT installed on this Mac and the docker daemon is not running by
+  default (the `docker` CLI resolves but OrbStack's socket is absent until
+  OrbStack starts, so the failure is a connect error, not a missing binary).
 - .claude/hooks/commit-gate.sh secret scan has no inline suppression. Its only
   escape hatch is harness.json's `secret_scan_exempt_paths` (verbatim
   repo-relative paths). It fires on `<name containing key/token/password>:
@@ -383,3 +400,10 @@ rather than being fabricated in the usual voice.
   at the point the plan is written, not at the point the command runs. The
   migration was authored, reviewed and committed-adjacent before discovering it
   could not be executed at all. (backlog)
+- Match the test environment to the DEPLOYMENT, not to whatever the repo's docs
+  happen to mention. The local pg17 container was reached for out of habit
+  (migrate.test.sh documents it) even though production is Neon PG18 and the
+  project already branches Neon for integration tests. Ovidiu caught it. Running
+  on a Neon branch immediately surfaced a redundant index that the container
+  would also have shown but that nobody would have looked for. Ask "is this the
+  same engine as production?" before picking a test target. (backlog)

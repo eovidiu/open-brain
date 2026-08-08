@@ -402,7 +402,8 @@
       "approaches_tried": [
         "Static bearer API keys, SHA-256 stored, looked up by hash then compared constant-time. Unsalted and no KDF: 256 bits of CSPRNG entropy makes brute force infeasible, and a work factor would add latency to every MCP request.",
         "Rate limiting split into a non-consuming blocked() and a consuming record() so only failed authentications spend budget. A single check() would have locked out a working client after 5 successful requests.",
-        "CLI hashing duplicated rather than importing workers/shared: a file: dependency would put the shared build ahead of the CLI in every root install. Both suites pin the same vector so drift fails a test."
+        "CLI hashing duplicated rather than importing workers/shared: a file: dependency would put the shared build ahead of the CLI in every root install. Both suites pin the same vector so drift fails a test.",
+        "Migration 006 verified on a disposable Neon branch cut from production (PG18, same engine), not the local pgvector pg17 container. Ovidiu's correction. Running it there caught a redundant index: UNIQUE (key_hash) already creates the btree the planner uses, so the explicit CREATE INDEX was dropped -- identical plan and cost without it."
       ],
       "discovered_via": "F006",
       "assigned_to": "single-session",

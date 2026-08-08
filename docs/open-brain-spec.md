@@ -161,7 +161,7 @@ One row per MCP client. Holds the SHA-256 of each key, never the key itself.
 |-------|------|-------------|-------------|
 | `id` | `uuid` | PK, not null, default `gen_random_uuid()` | |
 | `label` | `text` | Not null, unique, 1–100 chars | Names the client this key was issued to |
-| `key_hash` | `text` | Not null, unique, 64 lowercase hex chars | SHA-256 of the raw key; indexed, since every request looks a key up by it |
+| `key_hash` | `text` | Not null, unique, 64 lowercase hex chars | SHA-256 of the raw key. The uniqueness constraint supplies the btree every request's lookup uses, so no separate index is declared. Lowercase is enforced because the hash is only ever produced lowercase |
 | `created_at` | `timestamptz` | Not null, default `now()` | |
 | `last_used_at` | `timestamptz` | Nullable | Last successful authentication; `NULL` until first use |
 | `revoked_at` | `timestamptz` | Nullable | Set by revocation; a non-null value MUST reject the key |

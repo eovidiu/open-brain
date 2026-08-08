@@ -226,9 +226,12 @@
 - Discovered: F015 filed - removing /auth/token orphaned the capture Worker's JWT
   verify path (its only issuer). workers/capture/ was out of F013 scope, so it
   was NOT touched.
-- Next: (1) start OrbStack and run scripts/migrate.test.sh to actually execute
-  migration 006; (2) resolve the commit-gate blocker below and commit the code;
-  (3) apply 006 to Neon production (needs Ovidiu - production schema change);
+- Migration 006 VERIFIED (2026-08-08) on a disposable Neon branch cut from
+  production, after Ovidiu pointed out the local pg17 container was the wrong
+  target for a PG18 Neon deployment. Every query in api-keys.ts executed against
+  the real schema; all constraints fire. Caught and removed a redundant index
+  (UNIQUE (key_hash) already provides the lookup btree).
+- Next: (1) apply 006 to Neon production (needs Ovidiu - production schema change);
   (4) deploy the MCP Worker and delete the MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET
   secrets from it; (5) mint a key and run live acceptance (a)-(f), where (a)
   needs a recheck more than an hour after the first successful call; (6) open PR.

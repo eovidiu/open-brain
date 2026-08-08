@@ -12,10 +12,14 @@ CREATE TABLE api_keys (
   CONSTRAINT label_length
     CHECK (char_length(label) >= 1 AND char_length(label) <= 100),
 
-  -- SHA-256 rendered as lowercase hex is always 64 characters
+  -- SHA-256 rendered as lowercase hex is always 64 characters. Lowercase only:
+  -- hashApiKey emits lowercase, so an uppercase hash could never be matched by
+  -- the lookup and must not be storable.
   CONSTRAINT key_hash_format
     CHECK (key_hash ~ '^[0-9a-f]{64}$')
 );
 
--- Every authenticated request looks the presented key up by hash
-CREATE INDEX api_keys_key_hash_idx ON api_keys (key_hash);
+-- Every authenticated request looks the presented key up by hash. No separate
+-- index is declared for it: UNIQUE (key_hash) already creates the btree the
+-- planner uses for that equality lookup, and a second one on the same column
+-- would only add write cost.
