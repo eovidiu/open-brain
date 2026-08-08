@@ -50,12 +50,22 @@ function usage(): string {
   ].join('\n');
 }
 
+// .env first, then the process environment, so a key can be minted with a
+// one-off DATABASE_URL=... without a populated .env — which is also what makes
+// this usable from CI.
 function connect(): Sql {
   const env = loadEnv(repoRoot());
-  if (!hasEnvVar(env, 'DATABASE_URL')) {
-    throw new Error('DATABASE_URL is not set in .env. Run "openbrain setup" first.');
+  const url = hasEnvVar(env, 'DATABASE_URL')
+    ? env.values['DATABASE_URL']!
+    : process.env['DATABASE_URL'];
+
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is set in neither .env nor the environment. ' +
+        'Pass it inline (DATABASE_URL=... openbrain keys ...) or run "openbrain setup".',
+    );
   }
-  return neon(env.values['DATABASE_URL']!);
+  return neon(url);
 }
 
 async function createKey(sql: Sql, label: string): Promise<void> {

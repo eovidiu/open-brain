@@ -210,11 +210,38 @@ describe('runKeys revoke', () => {
 });
 
 describe('runKeys preconditions', () => {
-  it('fails when DATABASE_URL is absent', async () => {
+  it('fails when DATABASE_URL is in neither .env nor the environment', async () => {
     vi.mocked(loadEnv).mockReturnValue(envWith({}));
+    vi.stubEnv('DATABASE_URL', '');
 
     await expect(runKeys(['list'])).rejects.toThrow(/DATABASE_URL/);
     expect(mockNeon).not.toHaveBeenCalled();
+
+    vi.unstubAllEnvs();
+  });
+
+  it('falls back to DATABASE_URL from the environment when .env lacks it', async () => {
+    vi.mocked(loadEnv).mockReturnValue(envWith({}));
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost/from-env');
+    mockSql.mockResolvedValue([]);
+
+    await runKeys(['list']);
+
+    expect(mockNeon).toHaveBeenCalledWith('postgresql://localhost/from-env');
+
+    vi.unstubAllEnvs();
+  });
+
+  it('prefers .env over the environment', async () => {
+    vi.mocked(loadEnv).mockReturnValue(envWith({ DATABASE_URL: 'postgresql://localhost/from-dotenv' }));
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost/from-env');
+    mockSql.mockResolvedValue([]);
+
+    await runKeys(['list']);
+
+    expect(mockNeon).toHaveBeenCalledWith('postgresql://localhost/from-dotenv');
+
+    vi.unstubAllEnvs();
   });
 
   it('rejects an unknown subcommand', async () => {
