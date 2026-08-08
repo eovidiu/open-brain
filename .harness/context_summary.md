@@ -33,7 +33,13 @@ This file is referenced in CLAUDE.md and loaded every session.
 - Neon: project divine-waterfall-85490868 "open-brain", aws-eu-west-2, PG 18,
   branch production (5 migrations); test branch br-morning-morning-ab8igqsz
   gates integration tests via NEON_TEST_DATABASE_URL.
-- F013 CODE COMPLETE, NOT YET DEPLOYED (2026-08-08, branch f013-api-key-auth):
+- F013 DONE AND LIVE (2026-08-09): merged 00e39fd, tagged v3.0.0, MCP Worker
+  version e5987862, migration 006 on Neon production. Acceptance (a) closed
+  2026-08-08T22:36:22Z - the same key authenticated 63 minutes after first use,
+  where the replaced JWT died at 60. Only open item: the "no key in log lines"
+  half of (f) rests on unit tests and code inspection, not a live wrangler tail.
+  Original working notes below.
+- F013 build notes (2026-08-08, branch f013-api-key-auth):
   api_keys table (migration 006), workers/shared/src/api-keys.ts, the MCP
   Worker's bearer gate, and `openbrain keys create|list|revoke`. /auth/token,
   workers/mcp/src/auth/jwt.ts and MCP_CLIENT_SECRET are gone. All suites green
