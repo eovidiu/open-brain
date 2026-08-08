@@ -18,14 +18,9 @@ This file is referenced in CLAUDE.md and loaded every session.
   at current volume). OpenAI remains the fallback key. Retry worker keeps the
   OPENAI_METADATA_API_KEY secret (its selectCaller never falls back to
   OPENAI_API_KEY — divergence tracked in F010).
-  .env is STALE but DOES define DATABASE_URL (verified 2026-08-09 by grepping
-  the key name only). The earlier claim here that it had no DATABASE_URL was
-  WRONG and cost hours: it sent a credential-failure hunt chasing Neon branches,
-  pgbouncer auth caching and role expiry, when the real cause was cli connect()
-  preferring .env over an explicitly passed process.env DATABASE_URL. Its value
-  is a pre-rotation password, so anything reading .env authenticates with a dead
-  credential. Never modified per the no-.env-edits rule; `openbrain setup`
-  regenerates it.
+  .env defines DATABASE_URL and Ovidiu refreshed it to the current credential
+  (2026-08-09); other keys in it may still be stale. Never modified by an agent
+  per the no-.env-edits rule; `openbrain setup` regenerates it.
 - F010 DONE (2026-07-06): duplicated services consolidated into workers/shared
   (services.ts + queries.ts + db-util.ts, 13 files deleted); the retry
   key-fallback gap and mcp's 7-type/reject-validator divergence are gone by
