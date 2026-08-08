@@ -46,10 +46,20 @@ This file is referenced in CLAUDE.md and loaded every session.
   duplicate-label driver message really does contain "duplicate key value",
   which is the string cli createKey matches. Verifying on Neon rather than the
   pg17 container also caught a redundant index — see below.
-  STILL OPEN: (1) apply 006 to Neon PRODUCTION (Ovidiu — production schema
-  change); (2) deploy the MCP Worker and delete its now-unused
-  MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET secrets; (3) live acceptance (a)-(f),
-  where (a) "still works more than one hour later" needs an hour of wall clock.
+  MIGRATION 006 IS APPLIED TO PRODUCTION (2026-08-08, Ovidiu approved): branch
+  br-winter-waterfall-ab6aqifm now reports 6 migrations, api_keys present and
+  empty, memories still 7. The live (still-old-code) Worker kept serving
+  /health 200 afterwards, confirming the additive table broke nothing.
+  STILL OPEN: (1) `wrangler deploy` of workers/mcp -- the auto-mode classifier
+  blocks a production deploy even with Ovidiu's approval, so he runs it;
+  (2) delete the MCP Worker's now-unused MCP_CLIENT_SECRET and
+  CAPTURE_JWT_SECRET (credential revocation -- ask first per CLAUDE.md);
+  (3) live acceptance (a)-(f), where (a) needs an hour of wall clock.
+  BLOCKER for minting the first key: `openbrain keys` reads DATABASE_URL only
+  from .env via loadEnv(repoRoot()), and .env is STALE (no DATABASE_URL). There
+  is no process.env fallback, so the command cannot run until `openbrain setup`
+  regenerates .env. Offered Ovidiu a 2-line process.env fallback as an
+  alternative; not implemented unasked.
   Design notes worth keeping: SHA-256 is unsalted and KDF-free on purpose (the
   key is 256 CSPRNG bits, so a work factor would only tax every request);
   the rate limiter gained blocked()/record() so only FAILED authentications
