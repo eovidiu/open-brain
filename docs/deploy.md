@@ -41,9 +41,8 @@ Set per Worker with `npx wrangler secret put <NAME>` (run in the Worker's direct
 | Secret | capture | retry | mcp |
 |--------|---------|-------|-----|
 | `DATABASE_URL` | yes | yes | yes |
-| `CAPTURE_JWT_SECRET` | yes | — | yes |
+| `CAPTURE_JWT_SECRET` | yes | — | — |
 | `CAPTURE_WEBHOOK_SECRET` | yes | — | — |
-| `MCP_CLIENT_SECRET` | — | — | yes |
 | `OPENAI_API_KEY` | yes | yes | yes |
 | `ANTHROPIC_API_KEY` | optional | optional | optional |
 | `OPENAI_METADATA_API_KEY` | optional | optional | optional |
@@ -65,10 +64,10 @@ fails with Cloudflare error 10053 (binding name already in use).
     `embedding_status: 'pending'` rather than rejecting
 - **Retry**: no public route (all HTTP returns 404); runs on the cron trigger
 - **MCP**: `https://open-brain-mcp.<subdomain>.workers.dev`
-  - `POST /auth/token` with `{ "client_secret": "<MCP_CLIENT_SECRET>" }` → JWT
-    (1h expiry, rate-limited 5/15min per IP)
   - `GET /health` → DB connectivity + embedding model
-  - All other paths: Streamable HTTP MCP, `Authorization: Bearer <JWT>` required
+  - All other paths: Streamable HTTP MCP, `Authorization: Bearer <api-key>`
+    required. Keys are minted with `openbrain keys create <label>` and never
+    expire; failed authentications are rate-limited 5/15min per IP
 
 ## Verification
 

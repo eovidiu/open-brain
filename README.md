@@ -29,7 +29,7 @@ Claude Desktop (stdio)        Any MCP Client (Streamable HTTP)
 
 - **Capture Worker** — HTTP endpoint for saving thoughts (JWT HS256 or HMAC-signed webhooks)
 - **Retry Worker** — cron-driven; finishes embedding/metadata for degraded captures
-- **MCP Worker** — remote MCP server over Streamable HTTP with JWT auth (`/auth/token`)
+- **MCP Worker** — remote MCP server over Streamable HTTP with long-lived API-key auth
 - **mcp-server** — local stdio MCP server for Claude Desktop (same five tools)
 
 ## Setup
@@ -77,14 +77,15 @@ npm run dev --workspace=cli status
       "type": "http",
       "url": "https://open-brain-mcp.YOUR_SUBDOMAIN.workers.dev/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_JWT"
+        "Authorization": "Bearer YOUR_API_KEY"
       }
     }
   }
 }
 ```
 
-Tokens come from `POST /auth/token` with `{"client_secret": "<MCP_CLIENT_SECRET from .env>"}` and expire after an hour.
+Mint the key with `openbrain keys create <label>`. It is printed once, never expires, and stays
+valid until you run `openbrain keys revoke <label>`. `openbrain keys list` shows what is issued.
 
 ## What can it do?
 
