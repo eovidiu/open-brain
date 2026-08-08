@@ -246,3 +246,26 @@
 - Blockers: none blocking code. Remaining work needs Ovidiu's machine/account:
   start OrbStack (migration test), apply 006 to Neon production, deploy + prune
   the MCP Worker's stale secrets, then live acceptance.
+
+## Session 12 addendum - 2026-08-09 (F013 shipped)
+- PR #115 MERGED to main (00e39fd). Tag v3.0.0 created locally on that commit;
+  pushing it is blocked by the on-main push hook, so Ovidiu pushes the tag.
+- Migration 006 applied to Neon production; MCP Worker deployed (version
+  e5987862). Live acceptance (b)(c)(d)(e)(f) all pass. (a) is scheduled: a
+  one-shot cron fires 2026-08-08T22:36Z, >60 min after first key use
+  (21:32:46Z), and will flip F013 to passing on a 200.
+- Keys in production: mcp-client (active, in ~/.config/open-brain/mcp-key),
+  mcp-spare (revoked during acceptance), laptop (revoked; its raw value was
+  lost to a bad capture one-liner and was never usable).
+- INCIDENT, self-inflicted: cli connect() preferred .env over an explicitly
+  passed process.env DATABASE_URL. Since .env defines DATABASE_URL, every
+  inline override was ignored; after a password rotation this surfaced as
+  "password authentication failed" and took hours to trace, via two needless
+  credential rotations and a window of production downtime. Fixed in dc76a8c.
+  A stale context_summary note claiming .env had no DATABASE_URL is what hid it.
+- Next session: F015 (capture Worker's JWT path has no issuer since /auth/token
+  was removed - decide whether to move capture onto api_keys or drop the JWT
+  branch). Also `openbrain setup` to refresh the rest of .env; only
+  DATABASE_URL is current. NOTE setup regenerates CAPTURE_WEBHOOK_SECRET and
+  CAPTURE_JWT_SECRET without prompting when they are absent, and fails at
+  step 6 because psql is not installed - treat it as a deliberate task.
