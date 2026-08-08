@@ -30,7 +30,6 @@ const FULL_VALUES: Record<string, string> = {
   ANTHROPIC_API_KEY: 'sk-a',
   CAPTURE_WEBHOOK_SECRET: 'hmac',
   CAPTURE_JWT_SECRET: 'jwt',
-  MCP_CLIENT_SECRET: 'mcp',
 };
 
 function envWith(values: Record<string, string>): EnvFile {

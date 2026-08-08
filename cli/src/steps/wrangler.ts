@@ -48,8 +48,6 @@ export const WORKERS: WorkerSpec[] = [
     // worker's wrangler.toml; uploading them as secrets collides (code 10053).
     secrets: [
       'DATABASE_URL',
-      'MCP_CLIENT_SECRET',
-      'CAPTURE_JWT_SECRET',
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',
       'OPENAI_METADATA_API_KEY',

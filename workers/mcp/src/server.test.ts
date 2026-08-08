@@ -27,8 +27,6 @@ const mockHandleCaptureMemory = vi.mocked(handleCaptureMemory);
 const FAKE_SQL = {} as import('open-brain-workers-shared').Db;
 const FAKE_ENV: Env = {
   DATABASE_URL: 'postgres://test',
-  MCP_CLIENT_SECRET: 'client-secret',
-  CAPTURE_JWT_SECRET: 'jwt-secret',
   OPENAI_API_KEY: 'sk-test',
 };
 

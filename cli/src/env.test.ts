@@ -43,7 +43,6 @@ describe('saveEnv', () => {
       ANTHROPIC_API_KEY: 'sk-a',
       CAPTURE_WEBHOOK_SECRET: 'hmac',
       CAPTURE_JWT_SECRET: 'jwt',
-      MCP_CLIENT_SECRET: 'mcp',
       EMBEDDING_MODEL: 'text-embedding-3-small',
     };
     Object.assign(env.values, keys);

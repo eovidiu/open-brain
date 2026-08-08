@@ -10,7 +10,6 @@ const REQUIRED_KEYS = [
   'ANTHROPIC_API_KEY',
   'CAPTURE_WEBHOOK_SECRET',
   'CAPTURE_JWT_SECRET',
-  'MCP_CLIENT_SECRET',
 ];
 
 export const writeEnvStep: SetupStep = {

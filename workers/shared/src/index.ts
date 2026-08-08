@@ -14,6 +14,7 @@ export type Db = NeonQueryFunction<false, false>;
 export * from './types.js';
 export * from './services.js';
 export * from './queries.js';
+export * from './api-keys.js';
 export { toIso, parseVector } from './db-util.js';
 
 import { run, toIso } from './db-util.js';

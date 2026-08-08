@@ -45,7 +45,6 @@ export function saveEnv(env: EnvFile): void {
     '# Secrets',
     `CAPTURE_WEBHOOK_SECRET=${env.values['CAPTURE_WEBHOOK_SECRET'] ?? ''}`,
     `CAPTURE_JWT_SECRET=${env.values['CAPTURE_JWT_SECRET'] ?? ''}`,
-    `MCP_CLIENT_SECRET=${env.values['MCP_CLIENT_SECRET'] ?? ''}`,
     '',
   ];
 

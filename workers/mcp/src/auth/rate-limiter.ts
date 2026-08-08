@@ -9,6 +9,12 @@ interface RateLimitEntry {
   timestamps: number[];
 }
 
+// retryAfter is only meaningful when the request is refused, so it is carried
+// by that variant alone rather than being optional on both.
+export type RateLimitVerdict =
+  | { allowed: true }
+  | { allowed: false; retryAfter: number };
+
 export class RateLimiter {
   private entries = new Map<string, RateLimitEntry>();
   private windowMs: number;
@@ -19,17 +25,12 @@ export class RateLimiter {
     this.maxRequests = config.maxRequests;
   }
 
-  check(key: string): { allowed: boolean; retryAfter?: number } {
+  // Reports the current verdict without spending budget. Callers that only
+  // want to charge failures (the MCP auth gate) check this first, then
+  // record() on the failure path, so a successful request costs nothing.
+  blocked(key: string): RateLimitVerdict {
     const now = Date.now();
-    const cutoff = now - this.windowMs;
-
-    let entry = this.entries.get(key);
-    if (!entry) {
-      entry = { timestamps: [] };
-      this.entries.set(key, entry);
-    }
-
-    entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
+    const entry = this.sweep(key, now);
 
     if (entry.timestamps.length >= this.maxRequests) {
       const oldest = entry.timestamps[0]!;
@@ -37,8 +38,28 @@ export class RateLimiter {
       return { allowed: false, retryAfter: Math.max(1, retryAfter) };
     }
 
-    entry.timestamps.push(now);
     return { allowed: true };
+  }
+
+  record(key: string): void {
+    const now = Date.now();
+    this.sweep(key, now).timestamps.push(now);
+  }
+
+  check(key: string): RateLimitVerdict {
+    const verdict = this.blocked(key);
+    if (verdict.allowed) this.record(key);
+    return verdict;
+  }
+
+  private sweep(key: string, now: number): RateLimitEntry {
+    let entry = this.entries.get(key);
+    if (!entry) {
+      entry = { timestamps: [] };
+      this.entries.set(key, entry);
+    }
+    entry.timestamps = entry.timestamps.filter((t) => t > now - this.windowMs);
+    return entry;
   }
 }
 
