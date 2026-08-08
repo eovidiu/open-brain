@@ -8,3 +8,6 @@ coverage/
 .supabase/
 supabase/.temp/
 .openbrain-setup.json
+.harness/SESSION_INCOMPLETE
+.harness/features.json.lock
+.harness/dashboard/
