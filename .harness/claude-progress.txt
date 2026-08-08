@@ -232,9 +232,14 @@
   (4) deploy the MCP Worker and delete the MCP_CLIENT_SECRET/CAPTURE_JWT_SECRET
   secrets from it; (5) mint a key and run live acceptance (a)-(f), where (a)
   needs a recheck more than an hour after the first successful call; (6) open PR.
-- Blockers: the code commit trips .claude/hooks/commit-gate.sh's secret scan on
+- PR: https://github.com/eovidiu/open-brain/pull/115 (open, do NOT merge before
+  migration 006 is executed and live acceptance (a)-(f) passes)
+- Resolved this session: the code commit tripped .claude/hooks/commit-gate.sh's secret scan on
   `key_hash: <64-hex>` in workers/shared/src/api-keys.test.ts. That fixture is
   load-bearing (authenticateApiKey reads row.key_hash for its constant-time
   compare), the hook has no inline suppression, and adding the file to
   harness.json's secret_scan_exempt_paths is blocked by the auto-mode classifier.
-  Needs Ovidiu's call: approve the exemption, or accept a weaker test.
+  Ovidiu approved the exemption for both test files; committed as d87d85a.
+- Blockers: none blocking code. Remaining work needs Ovidiu's machine/account:
+  start OrbStack (migration test), apply 006 to Neon production, deploy + prune
+  the MCP Worker's stale secrets, then live acceptance.
