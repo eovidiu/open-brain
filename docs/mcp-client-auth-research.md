@@ -31,6 +31,22 @@ own `--help` output.
 | GitHub Copilot — JetBrains | **Yes** — note the different key: `"requestInit": {"headers": {…}}` | **Unverified** | stdio, remote URL |
 | Antigravity CLI (`agy`) | **Yes** — first-class `"headers"` field alongside `"serverUrl"`, in `~/.gemini/config/mcp_config.json` or `.agents/mcp_config.json` | Yes, DCR — but not confirmed to be the MCP-spec discovery chain | stdio, SSE, Streamable HTTP, ws |
 
+### Config syntax gotchas to remember when wiring clients
+
+- **Antigravity**: the transport field is `serverUrl`. The legacy names `url` and
+  `httpUrl` are explicitly **not** supported and will fail silently-ish.
+- **Copilot JetBrains**: headers nest under `requestInit`, not `headers` — the only
+  client in the set with that shape.
+- **Codex**: prefer `bearer_token_env_var` (names an env var; Codex builds the
+  `Authorization: Bearer` header itself) over hardcoding into `http_headers`, so the key
+  stays out of `config.toml`.
+- **Claude Code**: if `headers.Authorization` is set, it is used and OAuth is **not**
+  attempted as a fallback — a rejected header fails the connection rather than
+  degrading to a browser flow. That is the desired behaviour here, but it means a bad
+  key surfaces as a hard connection failure, not a login prompt.
+- **VS Code**: supports `${input:…}` in `headers`, which prompts once and stores the
+  value in the credential store instead of the JSON file.
+
 ### Conclusions from the matrix
 
 1. **Static bearer is the only mechanism with working, documented configuration on every
