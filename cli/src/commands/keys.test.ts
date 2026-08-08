@@ -232,9 +232,24 @@ describe('runKeys preconditions', () => {
     vi.unstubAllEnvs();
   });
 
-  it('prefers .env over the environment', async () => {
+  // An inline DATABASE_URL= is an explicit override. A stale .env shadowing it
+  // authenticates against the wrong credential and surfaces as "password
+  // authentication failed", which looks identical to a wrong password.
+  it('prefers the environment over a stale .env', async () => {
+    vi.mocked(loadEnv).mockReturnValue(envWith({ DATABASE_URL: 'postgresql://localhost/stale-dotenv' }));
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost/explicit-override');
+    mockSql.mockResolvedValue([]);
+
+    await runKeys(['list']);
+
+    expect(mockNeon).toHaveBeenCalledWith('postgresql://localhost/explicit-override');
+
+    vi.unstubAllEnvs();
+  });
+
+  it('uses .env when the environment does not set DATABASE_URL', async () => {
     vi.mocked(loadEnv).mockReturnValue(envWith({ DATABASE_URL: 'postgresql://localhost/from-dotenv' }));
-    vi.stubEnv('DATABASE_URL', 'postgresql://localhost/from-env');
+    vi.stubEnv('DATABASE_URL', '');
     mockSql.mockResolvedValue([]);
 
     await runKeys(['list']);

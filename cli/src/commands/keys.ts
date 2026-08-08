@@ -50,14 +50,15 @@ function usage(): string {
   ].join('\n');
 }
 
-// .env first, then the process environment, so a key can be minted with a
-// one-off DATABASE_URL=... without a populated .env — which is also what makes
-// this usable from CI.
+// The process environment wins over .env. Passing DATABASE_URL= inline is an
+// explicit override, so a stale .env must never shadow it — that silently
+// authenticates against the wrong credential and reports it as a password
+// failure, which is indistinguishable from a genuinely wrong password.
 function connect(): Sql {
   const env = loadEnv(repoRoot());
-  const url = hasEnvVar(env, 'DATABASE_URL')
+  const url = process.env['DATABASE_URL'] || (hasEnvVar(env, 'DATABASE_URL')
     ? env.values['DATABASE_URL']!
-    : process.env['DATABASE_URL'];
+    : undefined);
 
   if (!url) {
     throw new Error(
