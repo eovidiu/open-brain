@@ -413,7 +413,24 @@
       "failure_reason": null,
       "spec": null,
       "risk": "elevated",
-      "require_plan_approval": true
+      "require_plan_approval": true,
+      "proof": {
+        "evidence_type": "live-acceptance",
+        "artifact": "deployed Worker version e5987862, Neon branch br-winter-waterfall-ab6aqifm",
+        "verified": [
+          "(b) revoked key 401, other label 200",
+          "(c) absent/malformed/unknown auth 401, body is {\"error\":\"UNAUTHORIZED\"} only",
+          "(d) /auth/token 404 on GET and POST",
+          "(e) repeated unauthenticated /mcp 429 with Retry-After 888",
+          "(f) listing shows no raw key and no hash; 401 bodies carry no key material",
+          "(a) partial: MCP initialize succeeded over an API key; last_used_at recorded via waitUntil"
+        ],
+        "not_established": [
+          "(a) full: 'still works more than one hour later' - first successful use 2026-08-08T21:32:46Z, recheck due after 22:33Z",
+          "(f) log lines: covered by unit tests and code inspection, not by a live wrangler tail",
+          "(h) spec amendment merged - PR #115 still open"
+        ]
+      }
     },
     {
       "id": "F014",
