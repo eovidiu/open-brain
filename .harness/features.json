@@ -1,8 +1,8 @@
 {
   "project": "open-brain",
   "created": "2026-07-03",
-  "total_features": 9,
-  "passing": 3,
+  "total_features": 14,
+  "passing": 12,
   "features": [
     {
       "id": "F001",
@@ -380,6 +380,61 @@
       "notes": "Verified by Ovidiu's successful end-to-end run 2026-07-06 (overwrite prompt fired and was accepted; .env rewritten; all Workers deployed clean). Outro text corrected to the repo-launch command. Stray cli/.env cleanup remains his call.",
       "failure_reason": null,
       "spec": null
+    },
+    {
+      "id": "F013",
+      "description": "Replace the 1-hour JWT on the remote MCP Worker with long-lived, per-client API keys, so every MCP client can hold a durable static configuration. Today POST /auth/token issues a JWT with TOKEN_EXPIRY_SECONDS=3600 (workers/mcp/src/auth/jwt.ts:8) and workers/mcp/src/index.ts:109-118 requires it on every request; a credential that dies in 60 minutes cannot be written into any client's static config file, so no client stays connected. (1) New migration db/migrations/006_create_api_keys.sql: api_keys table with id uuid PK, label text NOT NULL UNIQUE, key_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(), last_used_at timestamptz NULL, revoked_at timestamptz NULL; index on key_hash. (2) Worker accepts Authorization: Bearer <raw-key>, SHA-256 hashes the presented key via WebCrypto, looks it up by hash, rejects when absent or revoked_at IS NOT NULL, and updates last_used_at on success. Comparison must be constant-time; the raw key is never logged, never returned after creation, and never appears in an error body. (3) Rate limiting extended to /mcp itself (rate-limiter.ts currently guards only /auth/token). (4) CLI gains key management so the feature is usable without hand-written SQL: create (prints the raw key exactly once), list (label, created, last used, revoked - never the key or hash), and revoke by label. (5) POST /auth/token and the JWT path are REMOVED, not deprecated - nothing in code calls them (verified: references exist only in README.md and docs/). (6) docs/open-brain-spec.md amended by PR: the API section, the transport/auth row of the security table, the threat table, the credential-rotation table and the test plan all currently specify JWT HS256 with 1-hour expiry and must reflect API-key auth. architecture.md, deploy.md and README.md updated to match. ACCEPTANCE: (a) a key minted by the CLI authenticates a real MCP request against the deployed Worker and still works more than one hour later; (b) a revoked key returns 401 and a valid key for a different label still succeeds; (c) an absent or malformed Authorization header returns 401 with no key material in the response; (d) /auth/token no longer exists and returns 404; (e) repeated unauthenticated requests to /mcp are rate limited; (f) the raw key appears in no log line, error body or list output; (g) all suites green, coverage >=95% on touched code; (h) spec amendment merged in the same PR series.",
+      "priority": 9,
+      "status": "pending",
+      "scope": [
+        "db/migrations/",
+        "workers/shared/src/",
+        "workers/mcp/src/",
+        "cli/src/",
+        "docs/open-brain-spec.md",
+        "docs/architecture.md",
+        "docs/deploy.md",
+        "README.md"
+      ],
+      "depends_on": [],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F006",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": "Decision and evidence base: docs/mcp-client-auth-research.md (2026-08-08). Static bearer chosen over OAuth 2.1 after verifying client support across 9 surfaces; MCP spec 2026-07-28 makes authorization OPTIONAL, so a static token outside the OAuth chapter is spec-legal. OAuth deferred to F014.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "elevated",
+      "require_plan_approval": true
+    },
+    {
+      "id": "F014",
+      "description": "Add MCP-spec OAuth 2.1 authorization to the MCP Worker so Claude Desktop and claude.ai - the two surfaces that accept static headers only through a gated Anthropic beta - can connect on their GA path. Requires: RFC 9728 protected-resource metadata at /.well-known/oauth-protected-resource, RFC 8414 authorization-server metadata, RFC 7591 dynamic client registration, authorization-code flow with PKCE S256, issuer mix-up validation per the 2026-07-28 spec revision, a consent screen, and token storage. Coexists with F013's API keys - does not replace them, since OAuth is unverified on Copilot CLI and JetBrains. ACCEPTANCE: Claude Desktop and claude.ai both connect via the Connectors UI with no beta enrolment; F013 API-key auth continues to work unchanged; suites green, coverage >=95% on touched code; spec amended by PR.",
+      "priority": 3,
+      "status": "pending",
+      "scope": [
+        "workers/mcp/src/",
+        "db/migrations/",
+        "docs/open-brain-spec.md"
+      ],
+      "depends_on": [
+        "F013"
+      ],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F013",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": "Backlog. Only worth building if Ovidiu wants Claude Desktop / claude.ai and Anthropic has not granted static-header beta access. See docs/mcp-client-auth-research.md sections 1 and 4.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "elevated",
+      "require_plan_approval": true
     }
   ]
 }

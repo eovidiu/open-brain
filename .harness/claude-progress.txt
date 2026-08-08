@@ -182,3 +182,27 @@
   (bin name only exists on global npm install).
 - System state: fully operational, .env current, nothing stale left except
   cli/.env + cli/.openbrain-setup.json (Ovidiu's rm, optional).
+
+## Session 6 - 2026-08-08 - F013 planned (auth rebuild), not started
+- Context: Ovidiu asked to connect Open Brain to 9 MCP client surfaces (Claude
+  Code CLI, Claude Desktop, claude.ai, Codex CLI, Codex desktop, Copilot CLI,
+  Copilot VS Code, Copilot JetBrains, Antigravity CLI). Attempting it exposed
+  that the MCP Worker's 1-hour JWT makes durable static client config impossible.
+- Research done and PERSISTED to docs/mcp-client-auth-research.md (client support
+  matrix, MCP spec analysis, decision, known gaps). Session scratchpad is not
+  durable - the doc is the record.
+- Decisions taken (Ovidiu, 2026-08-08): static long-lived API keys now (F013);
+  OAuth 2.1 + DCR deferred (F014, backlog); keys in an api_keys table in Neon,
+  one per client, individually revocable; inherited harness upgrade committed
+  first (3e59b1d); implementation to run from a repo-root-launched session.
+- F013 + F014 added to features.json. F013: priority 9, elevated risk,
+  require_plan_approval true, status pending.
+- SESSION_INCOMPLETE gap closed: Meta-Session 2026-07-20 written (reconstructed
+  from repo evidence, marked as such).
+- Tests: smoke_test green. No source files touched this session.
+- Next: launch a session FROM THE REPO ROOT (/Users/fameftimie/work/openBrain/
+  open-brain), run /harness-continue, implement F013 with TDD. Plan approval is
+  required before implementation - it is an auth change and the spec is
+  amended by PR only.
+- Blockers: none. Ovidiu holds a 1-hour JWT minted this session; it is
+  disposable and will be superseded by an API key.
