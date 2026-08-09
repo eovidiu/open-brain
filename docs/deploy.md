@@ -41,7 +41,6 @@ Set per Worker with `npx wrangler secret put <NAME>` (run in the Worker's direct
 | Secret | capture | retry | mcp |
 |--------|---------|-------|-----|
 | `DATABASE_URL` | yes | yes | yes |
-| `CAPTURE_JWT_SECRET` | yes | — | — |
 | `CAPTURE_WEBHOOK_SECRET` | yes | — | — |
 | `OPENAI_API_KEY` | yes | yes | yes |
 | `ANTHROPIC_API_KEY` | optional | optional | optional |
@@ -56,7 +55,7 @@ fails with Cloudflare error 10053 (binding name already in use).
 ## Endpoints
 
 - **Capture**: `POST https://open-brain-capture.<subdomain>.workers.dev/`
-  - Auth: `Authorization: Bearer <JWT>` (HS256, `CAPTURE_JWT_SECRET`) or HMAC
+  - Auth: `Authorization: Bearer <api-key>` (from `openbrain keys create`) or HMAC
     headers `X-OpenBrain-Signature` + `X-OpenBrain-Timestamp` (signature =
     HMAC-SHA256 over `timestamp.body` with `CAPTURE_WEBHOOK_SECRET`, 5-minute
     replay window)

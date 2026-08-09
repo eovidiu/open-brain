@@ -1,10 +1,10 @@
 # Open Brain: System Specification
 
-**Version**: 1.3.0  
+**Version**: 1.4.0  
 **Status**: Engineering-ready  
 **Owner**: Ovidiu  
-**Last Updated**: 2026-08-08  
-**Changelog**: 1.3.0 — MCP API keys (2026-08-08): the MCP Worker's 1-hour JWT and its `/auth/token` issuance endpoint are replaced by long-lived per-client API keys stored as SHA-256 in a new `api_keys` table, managed with `openbrain keys`; `MCP_CLIENT_SECRET` retired. The capture Worker's own JWT and HMAC auth (§9.2) are unchanged; 1.2.0 — delete capability (2026-07-06): `delete_memory` MCP tool added on both hosts (hard delete by exact id, owner-initiated only; closes BI-001); 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
+**Last Updated**: 2026-08-09  
+**Changelog**: 1.4.0 — capture API keys (2026-08-09): the capture endpoint's JWT branch is replaced by the same `api_keys` credential the MCP Worker uses, so one credential model covers both Workers; `CAPTURE_JWT_SECRET` retired; §9.2's contradictory precedence steps corrected and a `503` verdict added for an unreachable key lookup; ADR-005 amended; 1.3.0 — MCP API keys (2026-08-08): the MCP Worker's 1-hour JWT and its `/auth/token` issuance endpoint are replaced by long-lived per-client API keys stored as SHA-256 in a new `api_keys` table, managed with `openbrain keys`; `MCP_CLIENT_SECRET` retired. The capture Worker's own JWT and HMAC auth (§9.2) are unchanged; 1.2.0 — delete capability (2026-07-06): `delete_memory` MCP tool added on both hosts (hard delete by exact id, owner-initiated only; closes BI-001); 1.1.0 — Neon + Cloudflare amendment (2026-07-04): backend moved from Supabase (Postgres, edge functions, pg_cron) to Neon serverless Postgres + Cloudflare Workers (capture, retry cron, remote MCP over Streamable HTTP); §1.3 60-minute non-coder setup test dropped (personal-use scope); 1.0.0-MVP — definitive merge of v0.2.0 (Claude) and v0.2.1 (ChatGPT); all architectural decisions resolved; all open gaps closed
 
 ---
 
@@ -418,8 +418,8 @@ graph TB
     end
 
     A -->|HMAC auth| D
-    B -->|JWT Bearer| D
-    C -->|JWT Bearer| D
+    B -->|API key| D
+    C -->|API key| D
 
     D --> E
     D --> F
@@ -446,7 +446,7 @@ graph TB
 #### Capture Worker (`open-brain-capture`)
 
 - Receives HTTP POST from any capture source
-- Authenticates: HMAC-SHA256 for webhook sources; JWT Bearer for interactive clients (see §9.2)
+- Authenticates: HMAC-SHA256 for webhook sources; API key for owner-driven clients (see §9.2)
 - Validates input (length, source enum, rate limit)
 - Calls embedding API and metadata extraction LLM **in parallel**
 - Writes the `Memory` record over the Neon serverless driver using the single database role (credentials held as Worker secrets, never exposed to clients)
@@ -484,7 +484,7 @@ graph TB
 
 ```
 1.  Client sends POST /capture { text, source? }
-    + X-OpenBrain-Signature (HMAC) or Authorization: Bearer <jwt>
+    + X-OpenBrain-Signature (HMAC) or Authorization: Bearer <api-key>
 
 2.  Capture Worker:
     a.  Validates auth (§9.2 priority order)
@@ -568,9 +568,9 @@ Cloudflare Cron Trigger fires the retry Worker's scheduled() handler every 60 se
 
 **POST** `https://open-brain-capture.<subdomain>.workers.dev/` (custom domain optional; workers.dev is the interim fallback)
 
-**Authentication** (one MUST be present; JWT takes precedence if both present):
+**Authentication** (one MUST be present; the API key takes precedence if both present):
 - `X-OpenBrain-Signature: sha256=<hex>` + `X-OpenBrain-Timestamp: <unix-seconds>` — HMAC-SHA256 over `timestamp.body` (the timestamp, a literal dot, then the raw request body); replay window ±5 minutes; for webhook sources
-- `Authorization: Bearer <jwt>` — HS256 JWT signed with `CAPTURE_JWT_SECRET`; for interactive clients
+- `Authorization: Bearer <api-key>` — a live key from the `api_keys` table (§6.3); for owner-driven clients
 
 **Request Body:**
 
@@ -920,7 +920,7 @@ Security is fully implemented in MVP. No security items are deferred.
 
 | Surface | Transport | Auth Model |
 |---------|-----------|------------|
-| Capture Worker | HTTPS | HMAC-SHA256 (webhooks) or JWT Bearer (interactive clients) |
+| Capture Worker | HTTPS | HMAC-SHA256 (webhooks) or API key (owner-driven clients) |
 | Retry Worker | none | No public HTTP route; cron-invoked only |
 | MCP Server — stdio | OS process | Ambient OS isolation; no network exposure |
 | MCP Worker — Streamable HTTP | HTTPS | Long-lived API key, SHA-256 stored, constant-time compare; rate limited |
@@ -938,17 +938,29 @@ Two caller types require different auth models. See ADR-005.
 - Static secret; stored in webhook platform config and as a capture Worker secret
 - Rotation is manual; rotation procedure is in the operations runbook
 
-**Interactive clients** (MCP `capture_memory`, scripts, Claude Code): JWT Bearer.
-- Header: `Authorization: Bearer <jwt>`
-- JWT signed HS256 with `CAPTURE_JWT_SECRET` (`sub = "open-brain-owner"`)
-- 1-hour expiry; client re-authenticates on expiry
-- Same JWT infrastructure as the MCP Worker's authentication; no new components
+**Owner-driven clients** (scripts, shell, Claude Code): API key.
+- Header: `Authorization: Bearer <api-key>`
+- The same `api_keys` table and lookup the MCP Worker uses (§6.3, §9.3): the key is
+  matched by SHA-256 and compared in constant time; unknown and revoked keys MUST be
+  indistinguishable to the client
+- No expiry; a key is withdrawn by revoking it, per client, with `openbrain keys revoke`
+- `last_used_at` is updated off the critical path, so `openbrain keys list` reflects
+  capture use as well as MCP use
+
+Note that the MCP `capture_memory` tool does NOT use this endpoint — it writes to
+Postgres directly through the shared capture service. The capture endpoint exists for
+callers that cannot speak MCP.
 
 **Validation priority:**
-1. If `X-OpenBrain-Signature` present: validate HMAC; reject `401` if invalid
-2. Else if `Authorization: Bearer` present: validate JWT (signature, expiry, `sub = "open-brain-owner"`); reject `401` if invalid
+1. If `Authorization: Bearer` present: validate the API key; reject `401` if unknown or
+   revoked. This branch takes precedence when both credentials are present.
+2. Else if `X-OpenBrain-Signature` present: validate HMAC; reject `401` if invalid
 3. If neither present: reject `401`
-4. If both present: JWT takes precedence
+
+If the API-key lookup cannot be performed because the database is unreachable, the
+endpoint MUST reject `503 SERVICE_UNAVAILABLE` rather than `401`: a rejected credential
+and an unavailable directory are different answers, and conflating them sends the owner
+to rotate a key that was never wrong.
 
 All DB writes in the capture Worker MUST use the database credentials held as Worker secrets (`DATABASE_URL`). Database credentials are never transmitted to any client.
 
@@ -983,8 +995,7 @@ No RLS (AD-3). Authorization is enforced entirely at the HTTP layer (capture aut
 | Secret | Storage location | Rotation trigger |
 |--------|-----------------|-----------------|
 | `CAPTURE_WEBHOOK_SECRET` | Capture Worker secret + webhook platform config | On suspected compromise |
-| `CAPTURE_JWT_SECRET` (JWT signing key) | Capture + MCP Worker secrets; owner's `.env` (gitignored) | On suspected compromise; every 90 days |
-| MCP API keys | `api_keys` table (SHA-256 only); raw key in each client's config | On suspected compromise, or when a client is retired |
+| API keys | `api_keys` table (SHA-256 only); raw key in each client's config | On suspected compromise, or when a client is retired |
 | `DATABASE_URL` (Neon credentials) | All three Worker secrets; Claude Desktop config (local) | On suspected compromise |
 | OpenAI embedding API key | All three Worker secrets; owner's `.env` | On suspected compromise |
 | LLM metadata extraction API key | Worker secrets | On suspected compromise |
@@ -1008,9 +1019,8 @@ The MCP Worker is deployed on Cloudflare's edge:
 | Threat | Likelihood | Mitigation | Residual risk |
 |--------|-----------|------------|---------------|
 | Leaked `CAPTURE_WEBHOOK_SECRET` | Medium | Rotate; write access only, no read | Low |
-| Leaked `CAPTURE_JWT_SECRET` | Low | Gitignored `.env`; 90-day rotation | Low |
 | Leaked `DATABASE_URL` (Neon credentials) | Low | Never client-side; 2FA on Neon account | Medium — rotate immediately |
-| Leaked MCP API key | Medium | Per-client keys, so one revocation does not disturb the others; `last_used_at` surfaces unexpected use | Low |
+| Leaked API key | Medium | Per-client keys, so one revocation does not disturb the others; `last_used_at` surfaces unexpected use across both the MCP and capture endpoints | Low |
 | Brute force `/mcp` | Medium | 5 failed attempts/IP/15 min; `429` before the DB is queried | Low |
 | Stolen API key replayed | Medium | TLS in transit; revocation applies from the next request. Keys do not expire, so revocation is the only cut-off | Medium |
 | SQL injection via tool input | Low | Parameterized queries only; no string concatenation into SQL | Negligible |
@@ -1088,7 +1098,6 @@ MVP minimum viable observability:
 **Remote MCP clients cannot connect**
 1. Check `GET /health` on the MCP Worker; if erroring, check `npx wrangler tail` in `workers/mcp/`
 2. Verify the client's API key is present and not revoked (`openbrain keys list`)
-3. Verify `CAPTURE_JWT_SECRET` has not been rotated without re-issuing the capture Worker's client tokens
 
 **`embedding_status = 'failed'` accumulating**
 1. Investigate OpenAI embedding API for outage or credit exhaustion
@@ -1123,7 +1132,7 @@ MVP minimum viable observability:
 | Scenario | Expected |
 |----------|----------|
 | Valid text + HMAC auth | `201`, full response schema |
-| Valid text + JWT Bearer | `201`, full response schema |
+| Valid text + API key | `201`, full response schema |
 | Valid text + both headers | `201`, JWT takes precedence |
 | Missing auth | `401` |
 | Invalid HMAC signature | `401` |
@@ -1250,6 +1259,25 @@ Not required for MVP at personal use scale. If usage exceeds 100 captures/day, b
 
 **Consequences**: Two secrets to manage (`CAPTURE_WEBHOOK_SECRET`, `CAPTURE_JWT_SECRET`). Both documented in §9.7 with rotation triggers.
 
+**Amendment (2026-08-09, F015)**: The JWT half is replaced by the `api_keys` credential
+from ADR-007. The dual model stands — webhook platforms still need a static shared
+secret they can sign with — but the second credential is now a long-lived per-client API
+key rather than an HS256 token.
+
+The JWT branch had become unreachable in practice: its only issuer was the MCP Worker's
+`POST /auth/token`, which F013 removed, so the endpoint still verified tokens that
+nothing could mint. The `capture_memory` tool named above as an "interactive client"
+never called this endpoint either — it writes to Postgres directly.
+
+API keys serve this ADR's own rationale better than the JWT did. The stated objection to
+HMAC-only was that "one leaked secret compromises all clients"; a single shared
+`CAPTURE_JWT_SECRET` had exactly that property, while per-client keys can be revoked
+individually. The expiry the JWT provided is replaced by revocation, which is strictly
+more useful for a credential a client holds in a static config file.
+
+`CAPTURE_JWT_SECRET` is retired. Blast radius does not widen by accepting `api_keys` here:
+a leaked key already reached `capture_memory` through the MCP Worker.
+
 ---
 
 ### ADR-006: Async Retry Worker — pg_cron
@@ -1291,7 +1319,7 @@ Not required for MVP at personal use scale. If usage exceeds 100 captures/day, b
 | FR-RET-04 (exclude non-ready embeddings from search) | `search_brain` SQL WHERE clause | Correctness; prevents corrupt results |
 | FR-MCP-02 (same rate limits via MCP) | MCP server routes through same capture pipeline | Closes bypass vector |
 | NFR cost (< $0.30/month) | ADR-001, ADR-002, ADR-006 | Validated at baseline |
-| SEC §9.2 (dual capture auth) | Capture Worker auth handler | ADR-005 |
+| SEC §9.2 (dual capture auth: HMAC + API key) | Capture Worker auth handler | ADR-005, ADR-007 |
 | SEC §9.3 (remote MCP API keys) | `api_keys` table + MCP Worker request guard | ADR-003 (superseded for transport auth) |
 | SEC §9.4 (HTTP-layer authorization) | Single least-privilege Neon role; Worker secrets | AD-3: no RLS; auth at the HTTP layer |
 | SEC §9.7 (secret management) | Cloudflare Worker secrets + gitignored `.env` | Each secret has a storage location and rotation trigger |
