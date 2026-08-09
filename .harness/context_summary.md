@@ -4,6 +4,15 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
+- F015 DONE, NOT DEPLOYED (2026-08-09): the capture endpoint now authenticates
+  with the same `api_keys` credential as the MCP Worker; its JWT branch and
+  `CAPTURE_JWT_SECRET` are gone. 14/15 features passing; only F014 (OAuth 2.1,
+  backlog, gated on whether Ovidiu wants Claude Desktop/claude.ai connectors)
+  remains. TWO DEPLOY STEPS OUTSTANDING: `wrangler deploy` in workers/capture/,
+  and `wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture`. Until
+  the first runs, production still serves the JWT build. No live acceptance was
+  run against the deployed capture endpoint — the evidence for F015 is unit
+  tests and code inspection only.
 - MIGRATION COMPLETE (2026-07-04): F001-F009 all passing, all merged to main and
   pushed. DEPLOYED AND LIVE: capture
   https://open-brain-capture.eovidiu.workers.dev, retry cron (no public route),
@@ -424,3 +433,25 @@ rather than being fabricated in the usual voice.
   on a Neon branch immediately surfaced a redundant index that the container
   would also have shown but that nobody would have looked for. Ask "is this the
   same engine as production?" before picking a test target. (backlog)
+
+## Meta-Session 2026-08-09 (F015, single-session)
+- Scope vs planned: matched the feature's stated scope. One addition not in the
+  plan: `cli/src/steps/secrets.test.ts` was written because the coverage gate
+  applies to touched code and `secrets.ts` had never had a test (0%). Touching a
+  previously untested file silently imports its debt into your feature.
+- Discovered, not anticipated: §9.2's validation-priority list contradicted
+  itself (step 1 "HMAC first", step 4 "JWT wins"); the code implemented step 4.
+  A spec can be internally inconsistent and still read as authoritative — the
+  contradiction survived from 2026-03-03 to now because no one diffed the list
+  against the handler.
+- Discovered, not anticipated: the JWT branch's documented consumer never
+  existed. §9.2 named "MCP `capture_memory`" as an interactive client, but that
+  tool writes to Postgres directly on both hosts. The spec described an
+  integration that was never built, which is why the dead branch read as live.
+- Decision grounding beat decision speed: F015 offered two options and the right
+  one fell out of ADR-005's own recorded rationale ("one leaked secret
+  compromises all clients"). Reading why a decision was made settled a question
+  that reading what was decided could not.
+- Auth failure modes deserve distinct verdicts: a rejected credential (401) and
+  an unreachable key store (503) look identical to a client that only checks for
+  "not 200", and conflating them sends the owner to rotate a key that was fine.

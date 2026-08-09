@@ -269,3 +269,41 @@
   DATABASE_URL is current. NOTE setup regenerates CAPTURE_WEBHOOK_SECRET and
   CAPTURE_JWT_SECRET without prompting when they are absent, and fails at
   step 6 because psql is not installed - treat it as a deliberate task.
+
+## Session 2026-08-09 (F015, single-session)
+- Feature: F015 - capture endpoint's orphaned JWT branch replaced by api_keys
+- Status: complete (code + docs); NOT DEPLOYED
+- Tests: 396 passing (shared 74, capture 51, retry 19, mcp 78, mcp-server 74,
+  cli 100), 4 skipped (env-gated integration)
+- Coverage: capture auth.ts 100% lines / 97.05% branch, index.ts 100%/100%;
+  cli secrets.ts 100%, env.ts 100%, status.ts 100%, write-env.ts 100%,
+  wrangler.ts 95.61%
+- Decisions:
+  - Took option (a) of the two F015 enumerated: capture now accepts
+    `Authorization: Bearer obk_...` against the shared api_keys table. HMAC
+    stays for webhook platforms. Chose it because ADR-005's own recorded
+    rationale rejected HMAC-only ("one leaked secret compromises all clients"),
+    which option (b) would have restored.
+  - CAPTURE_JWT_SECRET retired from worker env, wrangler.toml, and the CLI.
+  - Unreachable key lookup returns 503, not 401 — a rejected credential and an
+    unavailable key store are different answers.
+  - Fixed a five-month-old spec self-contradiction: §9.2 step 1 said HMAC is
+    checked first, step 4 said the Bearer token wins; the handler did step 4.
+  - Spec bumped to v1.4.0, ADR-005 amended in place (original text retained per
+    the ADR-006 convention).
+- Next: DEPLOY IS OUTSTANDING. Two commands, both for Ovidiu to run:
+    npx wrangler deploy --cwd workers/capture
+    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
+  Until the first runs, production serves the JWT build. The second is a
+  credential deletion, so it needs Ovidiu's explicit go per CLAUDE.md.
+  Then live-acceptance the capture endpoint with a real key.
+  After that, F014 (OAuth 2.1) is the only feature left, and it is backlog:
+  build only if Ovidiu wants Claude Desktop/claude.ai connectors and the
+  Anthropic static-header beta is unavailable.
+- Blockers: none in code. `.env` refresh still pending from the previous
+  session (only DATABASE_URL is current); `openbrain setup` regenerates
+  CAPTURE_WEBHOOK_SECRET without prompting when absent and fails at step 6
+  because psql is not installed.
+- Harness note: `.harness/init.sh full_test` does NOT run the workers/* suites
+  (222 of 396 tests). Logged in .harness/HARNESS_BACKLOG.md; not fixed here,
+  since build config is out of F015's scope.
