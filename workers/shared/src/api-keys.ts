@@ -1,4 +1,5 @@
-// Long-lived per-client API keys for the MCP Worker.
+// Long-lived per-client API keys, presented to the MCP Worker on every request
+// and to the capture endpoint by owner-driven callers.
 //
 // The raw key is high-entropy (32 CSPRNG bytes), so a plain SHA-256 is the
 // right digest: a slow KDF defends against low-entropy secrets being brute

@@ -8,8 +8,8 @@ compatibility_date = "2026-07-04"
 METADATA_LLM_PROVIDER = "anthropic"
 
 # Secrets (set with `wrangler secret put <NAME>`, never committed):
-#   DATABASE_URL              Neon connection string (direct endpoint)
-#   CAPTURE_JWT_SECRET        HS256 signing secret for Bearer JWT auth
+#   DATABASE_URL              Neon connection string (direct endpoint); also
+#                             backs API-key auth, which reads the api_keys table
 #   CAPTURE_WEBHOOK_SECRET    HMAC signing secret for X-OpenBrain-Signature auth
 #   OPENAI_API_KEY            embeddings (text-embedding-3-small)
 #   OPENAI_METADATA_API_KEY   optional override of OPENAI_API_KEY for metadata calls

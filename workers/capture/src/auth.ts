@@ -1,20 +1,12 @@
-// JWT (HS256) and HMAC signature verification, ported from
-// supabase/functions/capture/index.ts. Both use the Web Crypto API, which
-// Cloudflare Workers support natively (no nodejs_compat flag required).
+// Credential verification for the capture endpoint: API keys for owner-driven
+// callers, HMAC signatures for webhook platforms that can only hold a static
+// shared secret. Both use the Web Crypto API, which Cloudflare Workers support
+// natively (no nodejs_compat flag required).
+import { authenticateApiKey, type Db } from 'open-brain-workers-shared';
 
 const HMAC_SIGNATURE_PREFIX = 'sha256=';
 const HMAC_MAX_TIMESTAMP_AGE_SECONDS = 300; // 5 minutes, replay protection
-const JWT_SUBJECT = 'open-brain-owner';
-
-function base64UrlDecode(input: string): Uint8Array {
-  const padded = input.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+const BEARER_PREFIX = 'Bearer ';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -29,46 +21,6 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
     false,
     ['sign', 'verify'],
   );
-}
-
-export type JwtVerification =
-  | { valid: true; payload: Record<string, unknown> }
-  | { valid: false };
-
-export async function verifyJwt(token: string, secret: string): Promise<JwtVerification> {
-  const parts = token.split('.');
-  if (parts.length !== 3) return { valid: false };
-
-  const [headerB64, payloadB64, signatureB64] = parts;
-
-  try {
-    const headerJson = new TextDecoder().decode(base64UrlDecode(headerB64));
-    const header = JSON.parse(headerJson);
-    if (header.alg !== 'HS256') return { valid: false };
-  } catch {
-    return { valid: false };
-  }
-
-  const key = await importHmacKey(secret);
-  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
-  const expectedSig = base64UrlDecode(signatureB64);
-
-  const valid = await crypto.subtle.verify('HMAC', key, expectedSig, signingInput);
-  if (!valid) return { valid: false };
-
-  try {
-    const payloadJson = new TextDecoder().decode(base64UrlDecode(payloadB64));
-    const payload = JSON.parse(payloadJson);
-
-    if (payload.sub !== JWT_SUBJECT) return { valid: false };
-    if (typeof payload.exp === 'number' && payload.exp < Math.floor(Date.now() / 1000)) {
-      return { valid: false };
-    }
-
-    return { valid: true, payload };
-  } catch {
-    return { valid: false };
-  }
 }
 
 // Constant-time hex comparison via a second HMAC pass: crypto.subtle has no
@@ -120,41 +72,52 @@ export async function verifyHmacSignature(
 }
 
 export type AuthResult =
-  | { authenticated: true; identifier: string }
+  | { authenticated: true; identifier: string; apiKeyId: string | null }
   | { authenticated: false };
 
+// `sql` is absent only when DATABASE_URL is unset, which disables the API-key
+// path without affecting HMAC callers.
+export interface AuthDeps {
+  sql?: Db;
+  webhookSecret?: string;
+}
+
+// Throws only when the key lookup itself fails (database unreachable). The
+// caller must not report that as a bad credential — a rejected key and an
+// unavailable database are different answers.
 export async function authenticate(
   headers: Headers,
   rawBody: Uint8Array,
-  secrets: { jwtSecret?: string; webhookSecret?: string },
+  deps: AuthDeps,
 ): Promise<AuthResult> {
   const authHeader = headers.get('Authorization');
   const sigHeader = headers.get('X-OpenBrain-Signature');
 
-  // Priority 1: JWT (takes precedence when both present)
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    if (!secrets.jwtSecret) {
-      console.error('[capture] CAPTURE_JWT_SECRET not configured');
+  // Priority 1: API key (takes precedence when both present)
+  if (authHeader?.startsWith(BEARER_PREFIX)) {
+    const presented = authHeader.slice(BEARER_PREFIX.length).trim();
+    if (!presented) return { authenticated: false };
+    if (!deps.sql) {
+      console.error('[capture] DATABASE_URL not configured; API-key auth unavailable');
       return { authenticated: false };
     }
-    const result = await verifyJwt(token, secrets.jwtSecret);
-    if (result.valid) {
-      return { authenticated: true, identifier: `jwt:${(result.payload.sub as string) || 'unknown'}` };
-    }
-    return { authenticated: false };
+    const record = await authenticateApiKey(deps.sql, presented);
+    if (!record) return { authenticated: false };
+    // The label is unique and non-secret, so it is safe to log and gives the
+    // rate limiter a stable per-client bucket.
+    return { authenticated: true, identifier: `key:${record.label}`, apiKeyId: record.id };
   }
 
   // Priority 2: HMAC webhook signature
   if (sigHeader) {
-    if (!secrets.webhookSecret) {
+    if (!deps.webhookSecret) {
       console.error('[capture] CAPTURE_WEBHOOK_SECRET not configured');
       return { authenticated: false };
     }
     const timestampHeader = headers.get('X-OpenBrain-Timestamp');
-    const valid = await verifyHmacSignature(rawBody, sigHeader, secrets.webhookSecret, timestampHeader);
+    const valid = await verifyHmacSignature(rawBody, sigHeader, deps.webhookSecret, timestampHeader);
     if (valid) {
-      return { authenticated: true, identifier: 'webhook:hmac' };
+      return { authenticated: true, identifier: 'webhook:hmac', apiKeyId: null };
     }
     return { authenticated: false };
   }

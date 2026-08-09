@@ -47,7 +47,6 @@ function fullEnv(): EnvFile {
       OPENAI_API_KEY: 'sk-openai',
       ANTHROPIC_API_KEY: 'sk-ant',
       CAPTURE_WEBHOOK_SECRET: 'hmac',
-      CAPTURE_JWT_SECRET: 'jwt',
     },
   };
 }
@@ -74,7 +73,7 @@ describe('wranglerStep', () => {
     expect(dirs).toEqual(['workers/capture', 'workers/retry', 'workers/mcp']);
     const capture = WORKERS[0];
     expect(capture.secrets).toEqual(
-      expect.arrayContaining(['DATABASE_URL', 'CAPTURE_JWT_SECRET', 'CAPTURE_WEBHOOK_SECRET', 'OPENAI_API_KEY'])
+      expect.arrayContaining(['DATABASE_URL', 'CAPTURE_WEBHOOK_SECRET', 'OPENAI_API_KEY'])
     );
     const mcp = WORKERS[2];
     expect(mcp.secrets).toEqual(expect.arrayContaining(['DATABASE_URL', 'OPENAI_API_KEY']));
@@ -82,7 +81,10 @@ describe('wranglerStep', () => {
     // API-key auth reads the keys from the database; the MCP Worker holds no
     // token-issuing secret of its own.
     expect(mcp.secrets).not.toContain('MCP_CLIENT_SECRET');
-    expect(mcp.secrets).not.toContain('CAPTURE_JWT_SECRET');
+    // Retired with the capture Worker's JWT branch: no worker uploads it.
+    for (const worker of WORKERS) {
+      expect(worker.secrets).not.toContain('CAPTURE_JWT_SECRET');
+    }
   });
 
   it('isComplete only when all three workers are recorded deployed', async () => {

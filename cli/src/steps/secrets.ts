@@ -3,7 +3,7 @@ import * as ui from '../ui.js';
 import { hasEnvVar } from '../env.js';
 import type { SetupStep, SetupState, EnvFile, StepResult } from '../types.js';
 
-const SECRET_KEYS = ['CAPTURE_WEBHOOK_SECRET', 'CAPTURE_JWT_SECRET'] as const;
+const SECRET_KEYS = ['CAPTURE_WEBHOOK_SECRET'] as const;
 
 export const secretsStep: SetupStep = {
   name: 'Generate Secrets',
@@ -23,12 +23,10 @@ export const secretsStep: SetupStep = {
       if (!regenerate) return { status: 'skipped', reason: 'Secrets already exist' };
     }
 
-    // HMAC and JWT secrets: 256-bit (32 bytes), hex-encoded (64 chars)
+    // HMAC secret: 256-bit (32 bytes), hex-encoded (64 chars). Interactive
+    // callers authenticate with `openbrain keys create`, not a shared secret.
     env.values['CAPTURE_WEBHOOK_SECRET'] = crypto.randomBytes(32).toString('hex');
     ui.info('Generated CAPTURE_WEBHOOK_SECRET (256-bit hex)');
-
-    env.values['CAPTURE_JWT_SECRET'] = crypto.randomBytes(32).toString('hex');
-    ui.info('Generated CAPTURE_JWT_SECRET (256-bit hex)');
 
     return { status: 'done' };
   },
