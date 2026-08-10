@@ -8,7 +8,6 @@ const REQUIRED_VARS = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
   'CAPTURE_WEBHOOK_SECRET',
-  'CAPTURE_JWT_SECRET',
 ];
 
 export async function runStatus(): Promise<void> {

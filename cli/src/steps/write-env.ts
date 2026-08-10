@@ -9,7 +9,6 @@ const REQUIRED_KEYS = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
   'CAPTURE_WEBHOOK_SECRET',
-  'CAPTURE_JWT_SECRET',
 ];
 
 export const writeEnvStep: SetupStep = {

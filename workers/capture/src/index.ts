@@ -1,13 +1,14 @@
-// Cloudflare Worker capture endpoint, ported from
-// supabase/functions/capture/index.ts. Preserves auth (JWT HS256 + HMAC
-// replay-protected signature), AD-6 embedding/metadata degradation, and
-// metadata output validation verbatim; adapts Deno.serve/Deno.env to the
-// Workers fetch handler and env bindings.
+// Cloudflare Worker capture endpoint. Authenticates with an API key from the
+// shared api_keys table, or an HMAC replay-protected signature for webhook
+// platforms that can only hold a static shared secret. AD-6 embedding/metadata
+// degradation and metadata output validation are carried forward from
+// supabase/functions/capture/index.ts verbatim.
 import {
   createDb,
   extractMetadata,
   fetchEmbedding,
   insertMemory,
+  touchApiKey,
   DEGRADED_METADATA,
   type InsertMemoryRecord,
   type MemorySource,
@@ -42,7 +43,7 @@ function errorResponse(status: number, code: string, extra?: Record<string, stri
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -54,14 +55,28 @@ export default {
     const startTime = Date.now();
     const rawBody = new Uint8Array(await req.arrayBuffer());
 
-    const authResult = await authenticate(req.headers, rawBody, {
-      jwtSecret: env.CAPTURE_JWT_SECRET,
-      webhookSecret: env.CAPTURE_WEBHOOK_SECRET,
-    });
+    // Built up front for the API-key lookup, and reused for the insert below.
+    // Left undefined when DATABASE_URL is unset so an unauthenticated caller
+    // still gets 401 rather than a configuration error.
+    const sql = env.DATABASE_URL ? createDb(env.DATABASE_URL) : undefined;
+
+    const { CAPTURE_WEBHOOK_SECRET: webhookSecret } = env;
+
+    let authResult;
+    try {
+      authResult = await authenticate(req.headers, rawBody, { sql, webhookSecret });
+    } catch (err) {
+      console.error(`[capture] API key lookup failed: ${(err as Error).message}`);
+      return errorResponse(503, 'SERVICE_UNAVAILABLE');
+    }
     if (!authResult.authenticated) {
       return errorResponse(401, 'UNAUTHORIZED');
     }
     const credentialId = authResult.identifier;
+
+    if (sql && authResult.apiKeyId) {
+      ctx.waitUntil(touchApiKey(sql, authResult.apiKeyId));
+    }
 
     const rateCheck = checkRateLimit(credentialId);
     if (!rateCheck.allowed) {
@@ -110,7 +125,7 @@ export default {
         `elapsed=${Date.now() - startTime}ms`,
     );
 
-    if (!env.DATABASE_URL) {
+    if (!sql) {
       console.error('[capture] DATABASE_URL not configured');
       return errorResponse(500, 'DB_WRITE_FAILED');
     }
@@ -127,7 +142,6 @@ export default {
     };
 
     try {
-      const sql = createDb(env.DATABASE_URL);
       const result = await insertMemory(sql, record);
       return jsonResponse(201, { ...result });
     } catch (err) {

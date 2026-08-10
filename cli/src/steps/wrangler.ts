@@ -22,7 +22,6 @@ export const WORKERS: WorkerSpec[] = [
     // uploading it as a secret collides (Cloudflare code 10053).
     secrets: [
       'DATABASE_URL',
-      'CAPTURE_JWT_SECRET',
       'CAPTURE_WEBHOOK_SECRET',
       'OPENAI_API_KEY',
       'ANTHROPIC_API_KEY',

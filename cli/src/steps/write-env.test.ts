@@ -33,7 +33,6 @@ const FULL_VALUES: Record<string, string> = {
   OPENAI_API_KEY: 'sk-o',
   ANTHROPIC_API_KEY: 'sk-a',
   CAPTURE_WEBHOOK_SECRET: 'hmac',
-  CAPTURE_JWT_SECRET: 'jwt',
 };
 
 beforeEach(() => {

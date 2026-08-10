@@ -6,7 +6,9 @@
   "version": "3.5.0",
   "secret_scan_exempt_paths": [
     "workers/shared/src/api-keys.test.ts",
-    "cli/src/commands/keys.test.ts"
+    "cli/src/commands/keys.test.ts",
+    "workers/capture/src/index.test.ts",
+    "workers/capture/src/auth.test.ts"
   ],
   "git_identity": {
     "user_name": "Ovidiu Eftimie",

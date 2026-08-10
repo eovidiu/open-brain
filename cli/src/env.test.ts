@@ -42,7 +42,6 @@ describe('saveEnv', () => {
       OPENAI_API_KEY: 'sk-o',
       ANTHROPIC_API_KEY: 'sk-a',
       CAPTURE_WEBHOOK_SECRET: 'hmac',
-      CAPTURE_JWT_SECRET: 'jwt',
       EMBEDDING_MODEL: 'text-embedding-3-small',
     };
     Object.assign(env.values, keys);

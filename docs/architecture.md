@@ -99,8 +99,10 @@ flowchart TB
 - **URL**: `https://open-brain-capture.eovidiu.workers.dev` (custom domain: backlog)
 - **Purpose**: the single HTTP intake for new memories from webhook-style callers.
 - **Auth** (either of, checked in this order):
-  - `Authorization: Bearer <JWT>` — HS256, secret `CAPTURE_JWT_SECRET`, subject must
-    be `open-brain-owner`, expiry enforced, `alg` confusion rejected.
+  - `Authorization: Bearer <api-key>` — a live key from the shared `api_keys` table,
+    matched by SHA-256 and compared in constant time; unknown and revoked keys are
+    indistinguishable to the caller. A `503` (not `401`) is returned when the lookup
+    itself fails.
   - HMAC headers `X-OpenBrain-Signature: sha256=<hex>` + `X-OpenBrain-Timestamp` —
     HMAC-SHA256 over `timestamp.body` with `CAPTURE_WEBHOOK_SECRET`; requests
     older or newer than **5 minutes** are rejected (replay protection).
@@ -328,7 +330,6 @@ be set; deletion is allowed from any state.)
 | Name | capture | retry | mcp | stdio (Desktop config) | Kind |
 |---|---|---|---|---|---|
 | `DATABASE_URL` | secret | secret | secret | env | Neon pooled connection string |
-| `CAPTURE_JWT_SECRET` | secret | — | — | — | HS256 signing key for the capture Worker's Bearer auth |
 | `CAPTURE_WEBHOOK_SECRET` | secret | — | — | — | HMAC key |
 | `OPENAI_API_KEY` | secret | secret | secret | env | embeddings + metadata fallback |
 | `ANTHROPIC_API_KEY` | secret | secret | secret | env | primary metadata |
