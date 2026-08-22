@@ -1,8 +1,8 @@
 {
   "project": "open-brain",
   "created": "2026-07-03",
-  "total_features": 14,
-  "passing": 12,
+  "total_features": 16,
+  "passing": 14,
   "features": [
     {
       "id": "F001",
@@ -486,6 +486,29 @@
       "test_file": "workers/capture/src/auth.test.ts (20), workers/capture/src/index.test.ts (26), cli/src/steps/secrets.test.ts (8)",
       "coverage": "capture auth.ts 100% lines / 97.05% branch, index.ts 100%/100%; cli secrets.ts 100%, env.ts 100%, status.ts 100%, write-env.ts 100%, wrangler.ts 95.61%",
       "notes": "Done 2026-08-09. CAPTURE_JWT_SECRET retired everywhere (worker env, wrangler.toml, CLI setup/status/write-env). NOT YET DEPLOYED: the capture Worker still runs the JWT build until `wrangler deploy` in workers/capture/, and the stale CAPTURE_JWT_SECRET remains set as a Cloudflare secret until deleted with `wrangler secret delete`. No live acceptance was run against the deployed endpoint.",
+      "failure_reason": null,
+      "spec": null,
+      "risk": "standard",
+      "require_plan_approval": false
+    },
+    {
+      "id": "F016",
+      "description": "The CLI declares its version twice \u2014 `version` in cli/package.json and a hardcoded `VERSION` constant in cli/src/index.ts \u2014 and the two drifted: package.json said 2.1.5 while index.ts said 3.0.0, so the banner, the tag, and the published tarball disagreed. Derive the runtime constant from package.json so a release cannot ship a mismatched pair. ACCEPTANCE: the value `openbrain` prints comes from cli/package.json with no second literal in source; a test fails if a second declaration is reintroduced.",
+      "priority": 4,
+      "status": "pending",
+      "scope": [
+        "cli/src/index.ts",
+        "cli/package.json"
+      ],
+      "depends_on": [],
+      "correction_cycles": 0,
+      "scope_expansions": [],
+      "approaches_tried": [],
+      "discovered_via": "F015",
+      "assigned_to": null,
+      "test_file": null,
+      "coverage": null,
+      "notes": "Found while finalizing release v3.1.0. Worked around for that release by setting both literals to 3.1.0 by hand; the duplication itself is untouched.",
       "failure_reason": null,
       "spec": null,
       "risk": "standard",
