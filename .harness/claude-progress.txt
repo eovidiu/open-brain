@@ -340,30 +340,37 @@
   of the last successful publish; npm's newest version is still 2.1.5. To finish:
   rotate the npm token, update the NPM_TOKEN repo secret, then
   `gh run rerun 32591734780`. The tag does not need re-cutting.
-- STILL OUTSTANDING from F015, unchanged and also Ovidiu's: the capture Worker has not
-  been deployed, so production still serves the JWT build. Live version 8201c653
-  (2026-08-08T21:26Z) has `Source: Secret Change`, so the running code predates F015.
-    npx wrangler deploy --cwd workers/capture
-    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
-  The second is a credential deletion and needs an explicit go per CLAUDE.md. Then
-  live-acceptance the capture endpoint with a real key.
-  PRE-DEPLOY STATE VERIFIED 2026-08-22 against the live Worker (read-only; names only,
-  no values): the standing gotcha is that `wrangler deploy` replaces a Worker's
-  plain-text vars with exactly what `[vars]` in wrangler.toml declares, so a var added
-  only in the dashboard is silently dropped. Here there is nothing to drop — the live
-  Worker's only var binding is `METADATA_LLM_PROVIDER = "anthropic"`, identical to
-  workers/capture/wrangler.toml. Secrets are stored outside the deploy payload and
-  survive it, and all four the post-F015 `Env` requires are already set
-  (DATABASE_URL, CAPTURE_WEBHOOK_SECRET, OPENAI_API_KEY, ANTHROPIC_API_KEY);
-  OPENAI_METADATA_API_KEY is absent and optional. So the deploy needs no
-  `wrangler secret put` before or after it.
-  DEAD SECRETS TO DELETE — three, not one. Capture carries CAPTURE_JWT_SECRET; the
-  MCP Worker still carries BOTH CAPTURE_JWT_SECRET and MCP_CLIENT_SECRET. None appears
-  in either Worker's `Env` interface and no code reads any of them (the only
-  references left are tests asserting their absence):
-    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
-    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/mcp
-    npx wrangler secret delete MCP_CLIENT_SECRET  --cwd workers/mcp
-- Next: after the two blockers above, F014 (OAuth 2.1) and F016 (CLI version single
-  source of truth) are the only open features; F014 is backlog and gated on whether
-  Ovidiu wants Claude Desktop/claude.ai connectors.
+- F015 DEPLOY AND CLEANUP DONE 2026-08-22, on Ovidiu's go. Nothing ops-side is left.
+  Capture Worker deployed: version 77cca02c-3a71-4b0f-a6a4-199f6b98628b (the prior
+  live version, 8201c653, was a `Source: Secret Change` on the pre-F015 code).
+  The deploy changed no bindings — `METADATA_LLM_PROVIDER` stayed the only var,
+  matching wrangler.toml, so the deploy-wipes-dashboard-vars hazard had nothing to
+  wipe. Secrets sit outside the deploy payload and survived it.
+  LIVE ACCEPTANCE, all pass:
+    valid api_keys Bearer   -> 201, embedding_status=ready, metadata_status=ready
+                               (proves DATABASE_URL, OPENAI_API_KEY and
+                               ANTHROPIC_API_KEY are all bound correctly post-deploy)
+    unknown key             -> 401
+    no credential           -> 401
+    GET /                   -> 405
+    key row last_used_at    -> touched, so touchApiKey fires
+    revoked key             -> 401 on BOTH Workers, immediately
+  THREE DEAD SECRETS DELETED, not one: CAPTURE_JWT_SECRET on capture, and both
+  CAPTURE_JWT_SECRET and MCP_CLIENT_SECRET on the MCP Worker. Capture re-verified 201
+  after each deletion; MCP /health 200 and initialize on /mcp 200 afterwards.
+  Remaining secrets — capture: DATABASE_URL, CAPTURE_WEBHOOK_SECRET, OPENAI_API_KEY,
+  ANTHROPIC_API_KEY. mcp: DATABASE_URL, OPENAI_API_KEY, ANTHROPIC_API_KEY.
+  Credential hygiene: acceptance used two purpose-minted keys
+  (f015-acceptance-20260822, f015-cleanup-20260822), both revoked immediately after.
+  Neither value was ever echoed — minted into a mode-600 temp file, read into a shell
+  variable, file deleted in the same invocation. Ovidiu's mcp-client key was not read
+  or touched.
+  GOTCHA WORTH KEEPING: the MCP Worker's Streamable HTTP handler is mounted at /mcp.
+  `POST /` with a perfectly valid key returns 404, which reads like an auth failure
+  and is not. /health is the only unauthenticated route.
+  Acceptance rows were left in the knowledge base (ids 07d2dbe2, 6944e01d, 76b05ba0),
+  matching what every prior session did — the F004-F010 smoke captures are all still
+  there. Deleting only mine would have broken that convention.
+- Next: F014 (OAuth 2.1) and F016 (CLI version single source of truth) are the only
+  open features; F014 is backlog and gated on whether Ovidiu wants Claude
+  Desktop/claude.ai connectors. The one remaining blocker is the npm token above.

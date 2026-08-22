@@ -17,25 +17,34 @@ This file is referenced in CLAUDE.md and loaded every session.
   npm's newest published version is still 2.1.5 (2026-03-09). To finish: rotate the npm
   token, update the `NPM_TOKEN` repo secret, then `gh run rerun 32591734780`. The tag
   does not need re-cutting.
-- F015 DONE, NOT DEPLOYED (2026-08-09): the capture endpoint now authenticates
+- F015 DEPLOYED AND LIVE-ACCEPTED (2026-08-22): the capture endpoint authenticates
   with the same `api_keys` credential as the MCP Worker; its JWT branch and
-  `CAPTURE_JWT_SECRET` are gone. 14/16 features passing; F014 (OAuth 2.1, backlog,
-  gated on whether Ovidiu wants Claude Desktop/claude.ai connectors) and F016 (CLI
-  version single source of truth) remain. TWO DEPLOY STEPS OUTSTANDING:
-  `wrangler deploy` in workers/capture/, and the dead-secret deletions. Until
-  the first runs, production still serves the JWT build (live version 8201c653,
-  `Source: Secret Change`, so the running code predates F015). No live acceptance was
-  run against the deployed capture endpoint — the evidence for F015 is unit
-  tests and code inspection only.
-  Pre-deploy state verified 2026-08-22 against the live Workers (names only, no
-  values): `wrangler deploy` overwrites plain-text vars with whatever `[vars]`
-  declares, so a dashboard-only var would be dropped — capture has none, its single
-  binding `METADATA_LLM_PROVIDER = "anthropic"` matches wrangler.toml exactly.
-  Secrets live outside the deploy payload and survive it; all four the post-F015 `Env`
-  needs are already set. So no `wrangler secret put` is required around the deploy.
-  Three dead secrets to delete, not one: `CAPTURE_JWT_SECRET` on capture, and BOTH
-  `CAPTURE_JWT_SECRET` and `MCP_CLIENT_SECRET` still set on the MCP Worker. Neither
-  name appears in either Worker's `Env` interface.
+  `CAPTURE_JWT_SECRET` are gone, in code and in production. Capture Worker version
+  77cca02c-3a71-4b0f-a6a4-199f6b98628b. 14/16 features passing; F014 (OAuth 2.1,
+  backlog, gated on whether Ovidiu wants Claude Desktop/claude.ai connectors) and F016
+  (CLI version single source of truth) remain — no deploy or ops step is outstanding.
+  Acceptance against the deployed endpoint, all pass: valid `api_keys` Bearer -> 201
+  with `embedding_status` and `metadata_status` both `ready` (so DATABASE_URL,
+  OPENAI_API_KEY and ANTHROPIC_API_KEY are all correctly bound after the deploy);
+  unknown key -> 401; no credential -> 401; GET -> 405; the key row's `last_used_at`
+  was touched, confirming `touchApiKey` fires; a revoked key -> 401 on both Workers
+  immediately.
+  The deploy changed no bindings: `METADATA_LLM_PROVIDER` remained the only var,
+  matching wrangler.toml, which is why the deploy-wipes-dashboard-vars hazard had
+  nothing to wipe. Secrets live outside the deploy payload and survived it.
+  THREE DEAD SECRETS DELETED, not one: `CAPTURE_JWT_SECRET` on capture, and both
+  `CAPTURE_JWT_SECRET` and `MCP_CLIENT_SECRET` on the MCP Worker. Neither name
+  appeared in either Worker's `Env`. Capture re-verified 201 after each deletion; MCP
+  `/health` 200 and `initialize` on `/mcp` 200 afterwards. Remaining secrets: capture
+  has DATABASE_URL, CAPTURE_WEBHOOK_SECRET, OPENAI_API_KEY, ANTHROPIC_API_KEY; mcp has
+  DATABASE_URL, OPENAI_API_KEY, ANTHROPIC_API_KEY.
+  Note on the MCP Worker's route: the Streamable HTTP handler is mounted at `/mcp`.
+  `POST /` returns 404 even with a valid key, which reads like an auth failure and is
+  not. `/health` is the only unauthenticated route.
+  Acceptance rows were left in the knowledge base, matching what every prior session
+  did (the F004-F010 smoke captures are all still present): ids 07d2dbe2, 6944e01d,
+  76b05ba0, all self-describing. Keys f015-acceptance-20260822 and
+  f015-cleanup-20260822 were revoked immediately after use.
 - MIGRATION COMPLETE (2026-07-04): F001-F009 all passing, all merged to main and
   pushed. DEPLOYED AND LIVE: capture
   https://open-brain-capture.eovidiu.workers.dev, retry cron (no public route),
