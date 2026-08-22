@@ -307,3 +307,43 @@
 - Harness note: `.harness/init.sh full_test` does NOT run the workers/* suites
   (222 of 396 tests). Logged in .harness/HARNESS_BACKLOG.md; not fixed here,
   since build config is out of F015's scope.
+
+## Session 2026-08-22 (release v3.1.0, single-session)
+- Task: orient and finalize a new release.
+- Status: release content complete and merged; npm publish BLOCKED on a credential
+  only Ovidiu can rotate.
+- Tests: 396 passing, 4 skipped (env-gated), across all six packages: shared 74,
+  capture 51, retry 19, mcp 78, mcp-server 74, cli 100. `init.sh full_test` covers
+  only mcp-server + cli, so the four workers suites were run by hand.
+- What shipped in v3.1.0 (the delta since v3.0.0):
+  - F015: capture endpoint authenticates with `api_keys` instead of the orphaned JWT
+    branch (already on main, unreleased).
+  - CLI 2.1.5 -> 3.1.0. Its version was declared twice and had drifted:
+    cli/package.json said 2.1.5, cli/src/index.ts said 3.0.0. Both now 3.1.0; the
+    duplication itself is filed as F016.
+  - .env.example: removed `CAPTURE_JWT_SECRET` and `MCP_CLIENT_SECRET`, both retired
+    by F015 and F013 and referenced by no live code. Added a line saying API keys are
+    minted with `openbrain keys create`, not set in env.
+  - docs/architecture.md: the two C4 diagrams, the capture container box, the capture
+    auth component row and the stale "JWT implementation" bullet all still described
+    JWT HS256. F015 declared this file in scope and updated only its prose.
+  - CLAUDE.md: spec pointer 1.2.0 -> 1.4.0.
+  - features.json: `total_features`/`passing` counters corrected (were 14/12, actual
+    16/14 with F016 added).
+- BLOCKER, needs Ovidiu: the repo's `NPM_TOKEN` no longer authorizes publish. The
+  v3.0.0 Release run (31279986454) failed with
+  `npm error 404 PUT https://registry.npmjs.org/@eovidiu%2fopen-brain-setup`, which is
+  npm's response to an unauthorized publish, not a version conflict. The secret was
+  last set 2026-03-09 — the day of the last successful publish. npm's latest published
+  version is still 2.1.5. To finish: rotate the npm token, update the NPM_TOKEN repo
+  secret, then re-run the failed Release run for the v3.1.0 tag (`gh run rerun <id>`).
+  The tag does not need re-cutting.
+- STILL OUTSTANDING from F015, unchanged and also Ovidiu's: the capture Worker has not
+  been deployed, so production still serves the JWT build:
+    npx wrangler deploy --cwd workers/capture
+    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
+  The second is a credential deletion and needs an explicit go per CLAUDE.md. Then
+  live-acceptance the capture endpoint with a real key.
+- Next: after the two blockers above, F014 (OAuth 2.1) and F016 (CLI version single
+  source of truth) are the only open features; F014 is backlog and gated on whether
+  Ovidiu wants Claude Desktop/claude.ai connectors.

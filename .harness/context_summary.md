@@ -4,12 +4,23 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
+- RELEASE v3.1.0 (2026-08-22): CLI `@eovidiu/open-brain-setup` bumped 2.1.5 -> 3.1.0
+  (package.json and the `VERSION` literal in cli/src/index.ts, which had drifted to
+  3.0.0 — see F016), stale `CAPTURE_JWT_SECRET` / `MCP_CLIENT_SECRET` removed from
+  .env.example, and docs/architecture.md's diagrams/tables brought onto post-F015
+  API-key auth. 396 tests green across all six packages.
+  BLOCKED ON OVIDIU: `NPM_TOKEN` (repo secret, set 2026-03-09) no longer authorizes
+  publish — the v3.0.0 Release run failed with `404 PUT` on the registry, which is
+  npm's answer to an unauthorized publish. Nothing has shipped to npm since
+  2026-03-09. Rotate the token, then re-run the tagged Release workflow run; the tag
+  does not need re-cutting.
 - F015 DONE, NOT DEPLOYED (2026-08-09): the capture endpoint now authenticates
   with the same `api_keys` credential as the MCP Worker; its JWT branch and
-  `CAPTURE_JWT_SECRET` are gone. 14/15 features passing; only F014 (OAuth 2.1,
-  backlog, gated on whether Ovidiu wants Claude Desktop/claude.ai connectors)
-  remains. TWO DEPLOY STEPS OUTSTANDING: `wrangler deploy` in workers/capture/,
-  and `wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture`. Until
+  `CAPTURE_JWT_SECRET` are gone. 14/16 features passing; F014 (OAuth 2.1, backlog,
+  gated on whether Ovidiu wants Claude Desktop/claude.ai connectors) and F016 (CLI
+  version single source of truth) remain. TWO DEPLOY STEPS OUTSTANDING:
+  `wrangler deploy` in workers/capture/, and
+  `wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture`. Until
   the first runs, production still serves the JWT build. No live acceptance was
   run against the deployed capture endpoint — the evidence for F015 is unit
   tests and code inspection only.
@@ -455,3 +466,36 @@ rather than being fabricated in the usual voice.
 - Auth failure modes deserve distinct verdicts: a rejected credential (401) and
   an unreachable key store (503) look identical to a client that only checks for
   "not 200", and conflating them sends the owner to rotate a key that was fine.
+
+## Meta-Session 2026-08-22 (release v3.1.0, single-session)
+- Scope vs planned: asked to orient and finalize a release. The scope expanded once,
+  for cause: the previous release never happened. `v3.0.0` was tagged and pushed on
+  2026-08-08, but its Release run failed and nothing was published — npm still tops
+  out at CLI 2.1.5, from March. "Finalize a release" therefore had to include
+  repairing the release path, not just tagging the next commit.
+- Discovered, not anticipated: the `v3.0.0` publish failed with
+  `npm error 404 PUT https://registry.npmjs.org/@eovidiu%2fopen-brain-setup`. That is
+  an authorization failure, not a version conflict — npm answers an unauthorized
+  publish with 404 rather than leaking package existence. `NPM_TOKEN` was last set
+  2026-03-09, the same day as the last successful publish, and has since lapsed. Only
+  Ovidiu can rotate it; the tag can then be re-run rather than re-cut.
+- Discovered, not anticipated: the CLI declared its version in two places, and they
+  had drifted — `cli/package.json` said `2.1.5` while `cli/src/index.ts` said
+  `3.0.0`. The tag matched neither's intent. Filed as F016; both literals were set to
+  `3.1.0` by hand for this release.
+- Discovered, not anticipated: `docs/architecture.md` was inside F015's declared
+  scope and was only half-updated. Its prose section on capture auth was rewritten
+  for API keys, but both C4 diagrams, the container box, the "JWT implementation"
+  bullet and the capture component table still described JWT HS256 — a credential
+  path that no longer exists anywhere in the repo. Prose gets updated; diagrams and
+  tables do not. Check a doc's diagrams and tables explicitly when it is in scope.
+- Discovered, not anticipated: `.env.example` still documented `CAPTURE_JWT_SECRET`
+  and `MCP_CLIENT_SECRET`, both retired by F015 and F013. The env template is the
+  first file a new operator reads and the last one a feature remembers to update.
+- Pattern to transfer: a pushed tag is not a release. The only proof is the run's
+  outcome and the registry's version list. This one sat "released" for two weeks with
+  nothing published.
+- Housekeeping found along the way: `features.json`'s `total_features` / `passing`
+  counters had drifted from the array they summarize (14/12 vs an actual 15/14), and
+  `context_summary.md` carries two separate `## Meta-Patterns` headings. Counters
+  fixed; the duplicate heading is left alone rather than restructured mid-release.

@@ -1,6 +1,8 @@
 # Open Brain — Architecture (C4 Model)
 
-**Status**: reflects the deployed system as of 2026-07-06 (spec v1.2.0)
+**Status**: reflects spec v1.4.0. One deploy is outstanding — the capture Worker in
+production still serves the pre-F015 build (JWT branch) until `wrangler deploy` runs in
+`workers/capture/`.
 **Audience**: anyone who needs to understand, operate, or extend the system
 **Authoritative behavior contract**: [open-brain-spec.md](open-brain-spec.md) — where this
 document and the spec disagree, the spec wins and this document has a bug.
@@ -41,8 +43,8 @@ flowchart TB
 
     owner -->|"captures thoughts,\nasks assistants to recall"| clients
     desktop -->|"MCP over stdio"| ob
-    remote -->|"MCP over Streamable HTTP\n(Bearer JWT)"| ob
-    hooks -->|"HTTPS POST\n(JWT or HMAC-signed)"| ob
+    remote -->|"MCP over Streamable HTTP\n(Bearer API key)"| ob
+    hooks -->|"HTTPS POST\n(API key or HMAC-signed)"| ob
     ob -->|"SQL over HTTPS\n(@neondatabase/serverless)"| neon
     ob -->|"text-embedding-3-small"| openai
     ob -->|"claude-haiku metadata"| anthropic
@@ -69,7 +71,7 @@ a database, and one is a command-line tool run on demand.
 ```mermaid
 flowchart TB
     subgraph cloudflare ["Cloudflare Workers (account eovidiu)"]
-        capture["Capture Worker\n[open-brain-capture]\nHTTPS intake for thoughts.\nJWT HS256 or HMAC auth."]
+        capture["Capture Worker\n[open-brain-capture]\nHTTPS intake for thoughts.\nAPI-key or HMAC auth."]
         retry["Retry Worker\n[open-brain-retry-worker]\nCron janitor, every minute.\nNo public HTTP route."]
         mcpw["MCP Worker\n[open-brain-mcp]\nRemote MCP over Streamable HTTP.\nLong-lived API-key auth."]
     end
@@ -143,9 +145,6 @@ flowchart TB
     `createMcpHandler()` (stateless by design, AD-4; the SDK requires the
     `nodejs_compat` flag and an alias stub for its unused `ai` import).
 - **Tools served**: all five (see Level 3).
-- **JWT implementation**: WebCrypto (no Node compat needed for our own code), with a
-  cross-implementation compatibility test against the `jsonwebtoken` package to pin
-  the standard wire format.
 
 ### Container: mcp-server (stdio) (`mcp-server/`)
 
@@ -233,7 +232,7 @@ flowchart LR
 | Component | File | Responsibility |
 |---|---|---|
 | Router/handler | `src/index.ts` | method/CORS gate, orchestration, AD-6 assembly, 201/4xx/5xx envelopes |
-| Auth | `src/auth.ts` | JWT HS256 verify (WebCrypto) + HMAC `sha256=` verify with ±5 min window; both constant-time |
+| Auth | `src/auth.ts` | `Authorization: Bearer <api-key>` looked up by SHA-256 against `api_keys` (takes precedence) + HMAC `sha256=` verify with ±5 min window; both constant-time |
 | Rate limit | `src/rate-limit.ts` | 60/min per credential, in-memory (resets on isolate recycle — accepted) |
 | Env contract | `src/env.ts` | secrets/vars binding shape |
 

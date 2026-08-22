@@ -5,7 +5,7 @@ Cloudflare Worker HTTP endpoint, stores them in Neon Postgres + pgvector with
 LLM-generated embeddings and metadata, and exposes retrieval through MCP hosts
 (local stdio for Claude Desktop; remote Streamable HTTP Worker for everything else).
 
-The authoritative specification is `docs/open-brain-spec.md` (v1.2.0). Prime Rule: the
+The authoritative specification is `docs/open-brain-spec.md` (v1.4.0). Prime Rule: the
 spec is versioned in git and changed via pull request; verbal amendments have no
 standing. Architecture description (C4): `docs/architecture.md`.
 
