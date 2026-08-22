@@ -4,7 +4,7 @@ import { runStatus } from './commands/status.js';
 import { runKeys } from './commands/keys.js';
 import * as ui from './ui.js';
 
-const VERSION = '3.0.0';
+const VERSION = '3.1.0';
 
 const command = process.argv[2];
 
