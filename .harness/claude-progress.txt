@@ -341,11 +341,29 @@
   rotate the npm token, update the NPM_TOKEN repo secret, then
   `gh run rerun 32591734780`. The tag does not need re-cutting.
 - STILL OUTSTANDING from F015, unchanged and also Ovidiu's: the capture Worker has not
-  been deployed, so production still serves the JWT build:
+  been deployed, so production still serves the JWT build. Live version 8201c653
+  (2026-08-08T21:26Z) has `Source: Secret Change`, so the running code predates F015.
     npx wrangler deploy --cwd workers/capture
     npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
   The second is a credential deletion and needs an explicit go per CLAUDE.md. Then
   live-acceptance the capture endpoint with a real key.
+  PRE-DEPLOY STATE VERIFIED 2026-08-22 against the live Worker (read-only; names only,
+  no values): the standing gotcha is that `wrangler deploy` replaces a Worker's
+  plain-text vars with exactly what `[vars]` in wrangler.toml declares, so a var added
+  only in the dashboard is silently dropped. Here there is nothing to drop — the live
+  Worker's only var binding is `METADATA_LLM_PROVIDER = "anthropic"`, identical to
+  workers/capture/wrangler.toml. Secrets are stored outside the deploy payload and
+  survive it, and all four the post-F015 `Env` requires are already set
+  (DATABASE_URL, CAPTURE_WEBHOOK_SECRET, OPENAI_API_KEY, ANTHROPIC_API_KEY);
+  OPENAI_METADATA_API_KEY is absent and optional. So the deploy needs no
+  `wrangler secret put` before or after it.
+  DEAD SECRETS TO DELETE — three, not one. Capture carries CAPTURE_JWT_SECRET; the
+  MCP Worker still carries BOTH CAPTURE_JWT_SECRET and MCP_CLIENT_SECRET. None appears
+  in either Worker's `Env` interface and no code reads any of them (the only
+  references left are tests asserting their absence):
+    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture
+    npx wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/mcp
+    npx wrangler secret delete MCP_CLIENT_SECRET  --cwd workers/mcp
 - Next: after the two blockers above, F014 (OAuth 2.1) and F016 (CLI version single
   source of truth) are the only open features; F014 is backlog and gated on whether
   Ovidiu wants Claude Desktop/claude.ai connectors.

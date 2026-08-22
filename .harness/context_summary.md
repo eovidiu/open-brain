@@ -22,11 +22,20 @@ This file is referenced in CLAUDE.md and loaded every session.
   `CAPTURE_JWT_SECRET` are gone. 14/16 features passing; F014 (OAuth 2.1, backlog,
   gated on whether Ovidiu wants Claude Desktop/claude.ai connectors) and F016 (CLI
   version single source of truth) remain. TWO DEPLOY STEPS OUTSTANDING:
-  `wrangler deploy` in workers/capture/, and
-  `wrangler secret delete CAPTURE_JWT_SECRET --cwd workers/capture`. Until
-  the first runs, production still serves the JWT build. No live acceptance was
+  `wrangler deploy` in workers/capture/, and the dead-secret deletions. Until
+  the first runs, production still serves the JWT build (live version 8201c653,
+  `Source: Secret Change`, so the running code predates F015). No live acceptance was
   run against the deployed capture endpoint — the evidence for F015 is unit
   tests and code inspection only.
+  Pre-deploy state verified 2026-08-22 against the live Workers (names only, no
+  values): `wrangler deploy` overwrites plain-text vars with whatever `[vars]`
+  declares, so a dashboard-only var would be dropped — capture has none, its single
+  binding `METADATA_LLM_PROVIDER = "anthropic"` matches wrangler.toml exactly.
+  Secrets live outside the deploy payload and survive it; all four the post-F015 `Env`
+  needs are already set. So no `wrangler secret put` is required around the deploy.
+  Three dead secrets to delete, not one: `CAPTURE_JWT_SECRET` on capture, and BOTH
+  `CAPTURE_JWT_SECRET` and `MCP_CLIENT_SECRET` still set on the MCP Worker. Neither
+  name appears in either Worker's `Env` interface.
 - MIGRATION COMPLETE (2026-07-04): F001-F009 all passing, all merged to main and
   pushed. DEPLOYED AND LIVE: capture
   https://open-brain-capture.eovidiu.workers.dev, retry cron (no public route),
