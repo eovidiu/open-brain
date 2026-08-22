@@ -4,15 +4,18 @@ Persistent record of architectural decisions, discovered patterns, gotchas, and 
 This file is referenced in CLAUDE.md and loaded every session.
 
 ## Active Context
-- RELEASE v3.1.0 (2026-08-22): CLI `@eovidiu/open-brain-setup` bumped 2.1.5 -> 3.1.0
-  (package.json and the `VERSION` literal in cli/src/index.ts, which had drifted to
-  3.0.0 — see F016), stale `CAPTURE_JWT_SECRET` / `MCP_CLIENT_SECRET` removed from
-  .env.example, and docs/architecture.md's diagrams/tables brought onto post-F015
-  API-key auth. 396 tests green across all six packages.
-  BLOCKED ON OVIDIU: `NPM_TOKEN` (repo secret, set 2026-03-09) no longer authorizes
-  publish — the v3.0.0 Release run failed with `404 PUT` on the registry, which is
-  npm's answer to an unauthorized publish. Nothing has shipped to npm since
-  2026-03-09. Rotate the token, then re-run the tagged Release workflow run; the tag
+- RELEASE v3.1.0 CUT, NOT PUBLISHED (2026-08-22): PR #126 merged (349751b), tag
+  `v3.1.0` pushed. CLI `@eovidiu/open-brain-setup` bumped 2.1.5 -> 3.1.0 (package.json
+  and the `VERSION` literal in cli/src/index.ts, which had drifted to 3.0.0 — see
+  F016), stale `CAPTURE_JWT_SECRET` / `MCP_CLIENT_SECRET` removed from .env.example,
+  and docs/architecture.md's diagrams/tables brought onto post-F015 API-key auth.
+  396 tests green across all six packages.
+  BLOCKED ON OVIDIU: `NPM_TOKEN` (repo secret, set 2026-03-09) does not authorize
+  publish. Proven, not inferred — the v3.1.0 Release run (32591734780) failed with the
+  same `404 Not Found - PUT .../@eovidiu%2fopen-brain-setup` as v3.0.0's run
+  (31279986454), this time naming version 3.1.0, so a version conflict is ruled out.
+  npm's newest published version is still 2.1.5 (2026-03-09). To finish: rotate the npm
+  token, update the `NPM_TOKEN` repo secret, then `gh run rerun 32591734780`. The tag
   does not need re-cutting.
 - F015 DONE, NOT DEPLOYED (2026-08-09): the capture endpoint now authenticates
   with the same `api_keys` credential as the MCP Worker; its JWT branch and

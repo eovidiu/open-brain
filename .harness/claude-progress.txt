@@ -330,14 +330,16 @@
   - CLAUDE.md: spec pointer 1.2.0 -> 1.4.0.
   - features.json: `total_features`/`passing` counters corrected (were 14/12, actual
     16/14 with F016 added).
-- BLOCKER, needs Ovidiu: the repo's `NPM_TOKEN` no longer authorizes publish. The
-  v3.0.0 Release run (31279986454) failed with
-  `npm error 404 PUT https://registry.npmjs.org/@eovidiu%2fopen-brain-setup`, which is
-  npm's response to an unauthorized publish, not a version conflict. The secret was
-  last set 2026-03-09 — the day of the last successful publish. npm's latest published
-  version is still 2.1.5. To finish: rotate the npm token, update the NPM_TOKEN repo
-  secret, then re-run the failed Release run for the v3.1.0 tag (`gh run rerun <id>`).
-  The tag does not need re-cutting.
+- Release cut: PR #126 merged (349751b), tag v3.1.0 pushed.
+- BLOCKER, needs Ovidiu: the repo's `NPM_TOKEN` does not authorize publish. Proven,
+  not inferred: the v3.1.0 Release run (32591734780) failed with the same
+  `npm error 404 Not Found - PUT https://registry.npmjs.org/@eovidiu%2fopen-brain-setup`
+  as v3.0.0's run (31279986454), this time naming version 3.1.0 — so it is not a
+  version conflict. npm returns 404 rather than 401/403 on an unauthorized publish so
+  as not to leak whether a package exists. The secret was last set 2026-03-09, the day
+  of the last successful publish; npm's newest version is still 2.1.5. To finish:
+  rotate the npm token, update the NPM_TOKEN repo secret, then
+  `gh run rerun 32591734780`. The tag does not need re-cutting.
 - STILL OUTSTANDING from F015, unchanged and also Ovidiu's: the capture Worker has not
   been deployed, so production still serves the JWT build:
     npx wrangler deploy --cwd workers/capture
