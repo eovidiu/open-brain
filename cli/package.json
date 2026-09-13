@@ -41,7 +41,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@clack/prompts": "^1.1.0",
+    "@clack/prompts": "^1.8.0",
     "@neondatabase/serverless": "^1.1.0"
   },
   "devDependencies": {
